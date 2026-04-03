@@ -1,0 +1,113 @@
+<Page x:Class="NextcloudUWP.Views.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Background="#0082c9" Padding="12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Click="BackButton_Click"
+                    Foreground="White" Background="Transparent">
+                <SymbolIcon Symbol="Back" />
+            </Button>
+            <TextBlock Grid.Column="1" Text="Settings"
+                       Foreground="White" VerticalAlignment="Center"
+                       FontSize="18" Margin="8,0,0,0" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Padding="16">
+
+                <!-- Account section -->
+                <TextBlock Text="ACCOUNT" FontSize="11" Foreground="#757575"
+                           Margin="0,8,0,8" />
+
+                <StackPanel x:Name="AccountPanel" Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                            Padding="16" Margin="0,0,0,8">
+                    <ProgressRing x:Name="AccountLoadingRing" IsActive="True"
+                                  HorizontalAlignment="Center" Margin="0,8" />
+                    <TextBlock x:Name="DisplayNameText" FontSize="16" FontWeight="SemiBold"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="UsernameText" FontSize="13" Foreground="#757575"
+                               Visibility="Collapsed" />
+                    <TextBlock x:Name="EmailText" FontSize="13" Foreground="#757575"
+                               Visibility="Collapsed" Margin="0,2,0,0" />
+                    <TextBlock x:Name="ServerText" FontSize="13" Foreground="#757575"
+                               Visibility="Collapsed" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <!-- Quota bar -->
+                <StackPanel x:Name="QuotaPanel" Visibility="Collapsed" Margin="0,0,0,16">
+                    <TextBlock x:Name="QuotaText" FontSize="12" Foreground="#757575"
+                               Margin="0,0,0,4" />
+                    <ProgressBar x:Name="QuotaBar" Maximum="100" Minimum="0"
+                                 Height="6" />
+                </StackPanel>
+
+                <!-- Sign out -->
+                <Button x:Name="SignOutButton" Content="Sign out"
+                        HorizontalAlignment="Stretch" Click="SignOut_Click"
+                        Foreground="Red" Visibility="Collapsed" Margin="0,0,0,24" />
+
+                <!-- Auto upload section -->
+                <TextBlock Text="AUTO UPLOAD" FontSize="11" Foreground="#757575"
+                           Margin="0,16,0,8" />
+                <StackPanel Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                            Padding="16" Margin="0,0,0,4">
+                    <TextBlock Text="Nextcloud destination folder"
+                               FontSize="12" Foreground="#757575" Margin="0,0,0,4" />
+                    <TextBox x:Name="RemotePathBox"
+                             PlaceholderText="/Photos/AutoUpload"
+                             FontSize="13" Margin="0,0,0,8"
+                             LostFocus="RemotePathBox_LostFocus" />
+                    <TextBlock Text="Local source folder"
+                               FontSize="12" Foreground="#757575" Margin="0,0,0,4" />
+                    <Button x:Name="PickFolderButton"
+                            Content="Pick folder..."
+                            HorizontalAlignment="Stretch"
+                            Click="PickFolder_Click"
+                            Margin="0,0,0,4" />
+                    <TextBlock x:Name="SelectedFolderText"
+                               FontSize="12" Foreground="#757575"
+                               TextWrapping="Wrap" Margin="0,0,0,8" />
+                    <Button x:Name="UploadNowButton"
+                            Content="Upload Now"
+                            HorizontalAlignment="Stretch"
+                            Click="UploadNow_Click"
+                            IsEnabled="False" />
+                    <ProgressBar x:Name="UploadProgress"
+                                 Minimum="0" Maximum="100"
+                                 Height="4" Margin="0,8,0,0"
+                                 Visibility="Collapsed" />
+                    <TextBlock x:Name="UploadStatusText"
+                               FontSize="12" Foreground="#757575"
+                               Margin="0,4,0,0" Visibility="Collapsed" />
+                </StackPanel>
+                <TextBlock x:Name="LastSyncText"
+                           FontSize="11" Foreground="#757575"
+                           Margin="0,2,0,0" />
+
+                <!-- App section -->
+                <TextBlock Text="APP" FontSize="11" Foreground="#757575"
+                           Margin="0,16,0,8" />
+                <StackPanel Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                            Padding="16">
+                    <TextBlock x:Name="VersionText" FontSize="13" Foreground="#757575" />
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

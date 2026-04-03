@@ -1,0 +1,10 @@
+.vs/
+bin/
+obj/
+AppXLayoutARM/
+*.user
+*.suo
+*.appx
+*.appxbundle
+*.pfx
+Issue.txt
