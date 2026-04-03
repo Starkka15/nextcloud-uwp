@@ -45,7 +45,9 @@ namespace NextcloudUWP.Services
                 ".jpg", ".jpeg", ".png", ".gif", ".bmp",
                 ".mp4", ".mov", ".3gp", ".heic", ".webp"
             };
-            var queryOptions = new QueryOptions(CommonFileQuery.OrderByDate, extensions)
+            // CommonFileQuery.DefaultQuery works with any folder (picked or library).
+            // OrderByDate only works on indexed/library folders and throws E_INVALIDARG otherwise.
+            var queryOptions = new QueryOptions(CommonFileQuery.DefaultQuery, extensions)
             {
                 FolderDepth = FolderDepth.Deep
             };
