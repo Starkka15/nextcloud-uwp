@@ -40,16 +40,8 @@
                         BadgeLogo="Assets\Square44x44Logo.scale-200.png" />
       </uap:VisualElements>
       <Extensions>
-        <!-- Register the app class as an in-process activatable class so the OS can
-             activate it for background tasks without launching a separate process. -->
-        <Extension Category="windows.activatableClass.inProcessServer">
-          <InProcessServer>
-            <Path>NextcloudUWP.exe</Path>
-            <ActivatableClass ActivatableClassId="NextcloudUWP.App" ThreadingModel="both" />
-          </InProcessServer>
-        </Extension>
-        <!-- Declare the timer-triggered background tasks.
-             EntryPoint matches the ActivatableClassId above. -->
+        <!-- App-level: declare timer background tasks.
+             EntryPoint matches the activatable class registered at package level below. -->
         <Extension Category="windows.backgroundTasks" EntryPoint="NextcloudUWP.App">
           <BackgroundTasks>
             <Task Type="timer" />
@@ -58,6 +50,16 @@
       </Extensions>
     </Application>
   </Applications>
+  <!-- Package-level: register the app as an in-process activatable class so the OS
+       can activate it for background tasks in the existing app process. -->
+  <Extensions>
+    <Extension Category="windows.activatableClass.inProcessServer">
+      <InProcessServer>
+        <Path>NextcloudUWP.exe</Path>
+        <ActivatableClass ActivatableClassId="NextcloudUWP.App" ThreadingModel="both" />
+      </InProcessServer>
+    </Extension>
+  </Extensions>
   <Capabilities>
     <Capability Name="internetClient" />
     <Capability Name="internetClientServer" />
