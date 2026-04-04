@@ -40,8 +40,8 @@
                         BadgeLogo="Assets\Square44x44Logo.scale-200.png" />
       </uap:VisualElements>
       <Extensions>
-        <!-- In-process background tasks: both tasks dispatch via App.OnBackgroundActivated -->
-        <Extension Category="windows.backgroundTasks" EntryPoint="NextcloudUWP.App">
+        <!-- In-process background tasks (no EntryPoint = routes to App.OnBackgroundActivated) -->
+        <Extension Category="windows.backgroundTasks">
           <BackgroundTasks>
             <Task Type="timer" />
           </BackgroundTasks>
