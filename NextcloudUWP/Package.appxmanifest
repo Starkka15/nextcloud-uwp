@@ -39,6 +39,23 @@
         <uap:LockScreen Notification="badgeAndTileText"
                         BadgeLogo="Assets\Square44x44Logo.scale-200.png" />
       </uap:VisualElements>
+      <Extensions>
+        <!-- Register the app class as an in-process activatable class so the OS can
+             activate it for background tasks without launching a separate process. -->
+        <Extension Category="windows.activatableClass.inProcessServer">
+          <InProcessServer>
+            <Path>NextcloudUWP.exe</Path>
+            <ActivatableClass ActivatableClassId="NextcloudUWP.App" ThreadingModel="both" />
+          </InProcessServer>
+        </Extension>
+        <!-- Declare the timer-triggered background tasks.
+             EntryPoint matches the ActivatableClassId above. -->
+        <Extension Category="windows.backgroundTasks" EntryPoint="NextcloudUWP.App">
+          <BackgroundTasks>
+            <Task Type="timer" />
+          </BackgroundTasks>
+        </Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>
