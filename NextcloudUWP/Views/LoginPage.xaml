@@ -15,7 +15,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="1" MaxWidth="400" Padding="24">
-            <TextBlock Text="Nextcloud" FontSize="36" FontWeight="Bold"
+            <TextBlock x:Name="TitleText" Text="Nextcloud" FontSize="36" FontWeight="Bold"
                        Foreground="#0082c9" HorizontalAlignment="Center" Margin="0,0,0,8" />
             <TextBlock Text="Sign in to your server" FontSize="16"
                        Foreground="#757575" HorizontalAlignment="Center" Margin="0,0,0,32" />

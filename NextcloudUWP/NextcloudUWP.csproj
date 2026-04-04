@@ -103,6 +103,8 @@
     <Compile Include="Services\WebDavClient.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\SyncService.cs" />
+    <Compile Include="Services\BackgroundTaskManager.cs" />
+    <Compile Include="Services\TileService.cs" />
     <Compile Include="Models\CloudFile.cs" />
     <Compile Include="Models\UserAccount.cs" />
     <Compile Include="Models\TrashbinFile.cs" />

@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using NextcloudUWP.Services;
 
@@ -18,15 +17,24 @@ namespace NextcloudUWP.ViewModels
         public async Task<bool> LoginAsync(string serverUrl, string username, string password)
         {
             _client.Configure(serverUrl, username, password);
-
-            var isValid = await _client.ValidateCredentialsAsync();
-            if (isValid)
+            try
             {
-                _settings.SaveCredentials(serverUrl, username, password);
+                var user = await _client.GetUserAsync();
+                if (string.IsNullOrEmpty(user?.Id)) return false;
+
+                _settings.AddAccount(
+                    serverUrl, username, password,
+                    displayName: user.DisplayName,
+                    email: user.Email,
+                    quotaUsed: user.QuotaUsed,
+                    quotaTotal: user.QuotaTotal);
+
                 return true;
             }
-
-            return false;
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using Windows.ApplicationModel;
 using Windows.Storage;
+using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -13,6 +14,7 @@ namespace NextcloudUWP.Views
     {
         private readonly SettingsService _settings = new SettingsService();
         private StorageFolder _selectedFolder;
+        private bool _loadingSettings; // prevents toggle handlers firing during init
 
         public SettingsPage()
         {
@@ -23,6 +25,28 @@ namespace NextcloudUWP.Views
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
+            // Load background task toggles without triggering handlers
+            _loadingSettings = true;
+            NotificationsToggle.IsOn = _settings.NotificationsEnabled;
+            AutoSyncToggle.IsOn      = _settings.AutoSyncEnabled;
+            _loadingSettings = false;
+
+            // Show saved folder path if any
+            var token = _settings.AutoSyncFolderToken;
+            if (!string.IsNullOrEmpty(token) &&
+                StorageApplicationPermissions.FutureAccessList.ContainsItem(token))
+            {
+                try
+                {
+                    var folder = await StorageApplicationPermissions.FutureAccessList
+                        .GetFolderAsync(token);
+                    _selectedFolder = folder;
+                    SelectedFolderText.Text = folder.Path;
+                    UploadNowButton.IsEnabled = true;
+                }
+                catch { }
+            }
+
             // Populate auto-upload settings
             RemotePathBox.Text = _settings.AutoUploadRemotePath;
             var lastSync = _settings.AutoUploadLastSync;
@@ -94,6 +118,9 @@ namespace NextcloudUWP.Views
                 QuotaText.Text = $"{used} of {total} used";
                 QuotaBar.Value = pct;
                 QuotaPanel.Visibility = Visibility.Visible;
+
+                // Keep live tile up to date whenever the user visits settings.
+                TileService.UpdateTile(quotaUsed, quotaTotal);
             }
 
             SignOutButton.Visibility = Visibility.Visible;
@@ -120,6 +147,13 @@ namespace NextcloudUWP.Views
             _selectedFolder = folder;
             SelectedFolderText.Text = folder.Path;
             UploadNowButton.IsEnabled = true;
+
+            // Persist so the background sync task can access it without a picker.
+            var existingToken = _settings.AutoSyncFolderToken;
+            if (string.IsNullOrEmpty(existingToken))
+                _settings.AutoSyncFolderToken = StorageApplicationPermissions.FutureAccessList.Add(folder);
+            else
+                StorageApplicationPermissions.FutureAccessList.AddOrReplace(existingToken, folder);
         }
 
         private async void UploadNow_Click(object sender, RoutedEventArgs e)
@@ -169,6 +203,35 @@ namespace NextcloudUWP.Views
                 UploadNowButton.IsEnabled = true;
                 PickFolderButton.IsEnabled = true;
             }
+        }
+
+        // ── Background tasks ─────────────────────────────────────────────
+
+        private async void NotificationsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loadingSettings) return;
+            _settings.NotificationsEnabled = NotificationsToggle.IsOn;
+            await App.RegisterBackgroundTasksAsync(_settings);
+            BgTaskStatusText.Text = NotificationsToggle.IsOn
+                ? "Notification polling enabled (≈15 min interval)"
+                : "Notification polling disabled";
+        }
+
+        private async void AutoSyncToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loadingSettings) return;
+            _settings.AutoSyncEnabled = AutoSyncToggle.IsOn;
+            if (AutoSyncToggle.IsOn && string.IsNullOrEmpty(_settings.AutoSyncFolderToken))
+            {
+                BgTaskStatusText.Text = "Pick a source folder below to enable auto-upload.";
+                AutoSyncToggle.IsOn = false;
+                _settings.AutoSyncEnabled = false;
+                return;
+            }
+            await App.RegisterBackgroundTasksAsync(_settings);
+            BgTaskStatusText.Text = AutoSyncToggle.IsOn
+                ? "Auto-upload enabled (≈30 min interval)"
+                : "Auto-upload disabled";
         }
 
         // ── Sign out ─────────────────────────────────────────────────────

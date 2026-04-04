@@ -13,6 +13,7 @@ namespace NextcloudUWP.Models
         public string Email { get; set; }
         public long QuotaTotal { get; set; }
         public long QuotaUsed { get; set; }
+        public bool IsActive { get; set; }
         public string QuotaDisplay
         {
             get
