@@ -101,6 +101,8 @@ namespace NextcloudUWP.Services
                 var permissions = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "permissions")?.Value;
                 var favoriteStr = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "favorite")?.Value;
                 bool isFavorite = favoriteStr == "1";
+                var hasPreviewStr = prop.Element(XNamespace.Get("http://nextcloud.org/ns") + "has-preview")?.Value;
+                bool hasPreview = hasPreviewStr == "true";
 
                 result.Add(new CloudFile
                 {
@@ -113,7 +115,8 @@ namespace NextcloudUWP.Services
                     ModifiedDate = modified,
                     ETag = etag,
                     Permissions = permissions,
-                    IsFavorite = isFavorite
+                    IsFavorite = isFavorite,
+                    HasPreview = hasPreview
                 });
             }
 
@@ -182,6 +185,184 @@ namespace NextcloudUWP.Services
             var request = new HttpRequestMessage(new HttpMethod("MKCOL"),
                 $"{_serverUrl}/remote.php/dav/files/{_username}{NormalizePath(folderPath)}");
             var response = await _httpClient.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<List<CloudFile>> SearchAsync(string query)
+        {
+            var result = new List<CloudFile>();
+            var body = $@"<?xml version=""1.0"" encoding=""utf-8"" ?>
+<d:searchrequest xmlns:d=""DAV:"" xmlns:oc=""http://owncloud.org/ns"" xmlns:nc=""http://nextcloud.org/ns"">
+  <d:basicsearch>
+    <d:select>
+      <d:prop>
+        <d:displayname/><d:getcontentlength/><d:getcontenttype/>
+        <d:resourcetype/><d:getlastmodified/><d:etag/>
+        <oc:id/><oc:size/><oc:permissions/><oc:favorite/>
+      </d:prop>
+    </d:select>
+    <d:from>
+      <d:scope>
+        <d:href>/remote.php/dav/files/{_username}/</d:href>
+        <d:depth>infinity</d:depth>
+      </d:scope>
+    </d:from>
+    <d:where>
+      <d:like>
+        <d:prop><d:displayname/></d:prop>
+        <d:literal>%{query}%</d:literal>
+      </d:like>
+    </d:where>
+    <d:orderby/>
+  </d:basicsearch>
+</d:searchrequest>";
+
+            var request = new HttpRequestMessage(new HttpMethod("SEARCH"),
+                $"{_serverUrl}/remote.php/dav/files/{_username}/");
+            request.Content = new StringContent(body, Encoding.UTF8, "text/xml");
+
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStringAsync();
+            var doc = XDocument.Parse(content);
+            var basePath = $"/remote.php/dav/files/{_username}";
+
+            foreach (var responseElem in doc.Root.Elements(DavNs + "response"))
+            {
+                var href = responseElem.Element(DavNs + "href")?.Value;
+                if (href == null) continue;
+
+                var decoded = Uri.UnescapeDataString(href);
+                var parts = decoded.TrimEnd('/').Split('/');
+                var fileName = parts.Length > 0 ? parts[parts.Length - 1] : "";
+                if (string.IsNullOrEmpty(fileName)) continue;
+
+                var relativePath = decoded.StartsWith(basePath)
+                    ? decoded.Substring(basePath.Length)
+                    : decoded;
+                if (string.IsNullOrEmpty(relativePath)) relativePath = "/";
+
+                var propStat = responseElem.Element(DavNs + "propstat");
+                var prop = propStat?.Element(DavNs + "prop");
+                if (prop == null) continue;
+
+                var ocNs = XNamespace.Get("http://owncloud.org/ns");
+                var isFolder = prop.Element(DavNs + "resourcetype")?.Element(DavNs + "collection") != null;
+                var sizeStr = prop.Element(DavNs + "getcontentlength")?.Value ?? prop.Element(ocNs + "size")?.Value;
+                long size = 0; long.TryParse(sizeStr, out size);
+                DateTime modified = DateTime.MinValue;
+                DateTime.TryParse(prop.Element(DavNs + "getlastmodified")?.Value, out modified);
+                bool isFavorite = prop.Element(ocNs + "favorite")?.Value == "1";
+
+                result.Add(new CloudFile
+                {
+                    Name = fileName,
+                    Path = relativePath,
+                    RemoteId = prop.Element(ocNs + "id")?.Value,
+                    Size = size,
+                    MimeType = prop.Element(DavNs + "getcontenttype")?.Value,
+                    IsFolder = isFolder,
+                    ModifiedDate = modified,
+                    ETag = prop.Element(DavNs + "etag")?.Value?.Trim('"'),
+                    Permissions = prop.Element(ocNs + "permissions")?.Value,
+                    IsFavorite = isFavorite
+                });
+            }
+            return result;
+        }
+
+        public async Task<List<TrashbinFile>> ListTrashbinAsync()
+        {
+            var result = new List<TrashbinFile>();
+            var ncNs = XNamespace.Get("http://nextcloud.org/ns");
+
+            var body = @"<?xml version=""1.0"" encoding=""utf-8"" ?>
+<d:propfind xmlns:d=""DAV:"" xmlns:nc=""http://nextcloud.org/ns"" xmlns:oc=""http://owncloud.org/ns"">
+  <d:prop>
+    <d:resourcetype/>
+    <d:getcontentlength/>
+    <oc:size/>
+    <nc:trashbin-filename/>
+    <nc:trashbin-original-location/>
+    <nc:trashbin-deletion-time/>
+  </d:prop>
+</d:propfind>";
+
+            var request = new HttpRequestMessage(new HttpMethod("PROPFIND"),
+                $"{_serverUrl}/remote.php/dav/trashbin/{_username}/trash/");
+            request.Content = new StringContent(body, Encoding.UTF8, "application/xml");
+            request.Headers.Add("Depth", "1");
+
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return result;
+
+            var content = await response.Content.ReadAsStringAsync();
+            var doc = XDocument.Parse(content);
+            var ocNs = XNamespace.Get("http://owncloud.org/ns");
+
+            foreach (var responseElem in doc.Root.Elements(DavNs + "response"))
+            {
+                var href = responseElem.Element(DavNs + "href")?.Value;
+                if (href == null) continue;
+
+                var decoded = Uri.UnescapeDataString(href);
+                var trashPrefix = $"/remote.php/dav/trashbin/{_username}/trash/";
+                if (decoded == trashPrefix || decoded == trashPrefix.TrimEnd('/')) continue;
+
+                var propStat = responseElem.Element(DavNs + "propstat");
+                var prop = propStat?.Element(DavNs + "prop");
+                if (prop == null) continue;
+
+                var isFolder = prop.Element(DavNs + "resourcetype")?.Element(DavNs + "collection") != null;
+                var sizeStr = prop.Element(DavNs + "getcontentlength")?.Value ?? prop.Element(ocNs + "size")?.Value;
+                long size = 0; long.TryParse(sizeStr, out size);
+
+                var origName = prop.Element(ncNs + "trashbin-filename")?.Value;
+                var origLoc = prop.Element(ncNs + "trashbin-original-location")?.Value;
+                var delTimeStr = prop.Element(ncNs + "trashbin-deletion-time")?.Value;
+                DateTime delTime = DateTime.MinValue;
+                if (long.TryParse(delTimeStr, out long unixTime))
+                    delTime = DateTimeOffset.FromUnixTimeSeconds(unixTime).LocalDateTime;
+
+                // Extract just the item name from the href (the last segment)
+                var segments = decoded.TrimEnd('/').Split('/');
+                var itemName = segments.Length > 0 ? segments[segments.Length - 1] : decoded;
+
+                result.Add(new TrashbinFile
+                {
+                    Name = origName ?? itemName,
+                    OriginalFilename = origName ?? itemName,
+                    OriginalLocation = origLoc,
+                    TrashbinPath = decoded,
+                    Size = size,
+                    IsFolder = isFolder,
+                    DeletionTime = delTime
+                });
+            }
+            return result;
+        }
+
+        public async Task<bool> RestoreTrashbinFileAsync(string trashbinHref, string originalFilename)
+        {
+            var request = new HttpRequestMessage(new HttpMethod("MOVE"),
+                $"{_serverUrl}{trashbinHref}");
+            request.Headers.Add("Destination",
+                $"{_serverUrl}/remote.php/dav/trashbin/{_username}/restore/{Uri.EscapeDataString(originalFilename)}");
+            var response = await _httpClient.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> DeleteTrashbinPermanentlyAsync(string trashbinHref)
+        {
+            var response = await _httpClient.DeleteAsync($"{_serverUrl}{trashbinHref}");
+            return response.IsSuccessStatusCode;
+        }
+
+        public async Task<bool> EmptyTrashbinAsync()
+        {
+            var response = await _httpClient.DeleteAsync(
+                $"{_serverUrl}/remote.php/dav/trashbin/{_username}/trash/");
             return response.IsSuccessStatusCode;
         }
 

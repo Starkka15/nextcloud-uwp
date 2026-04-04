@@ -60,13 +60,19 @@ namespace NextcloudUWP.Services
             var json = JObject.Parse(content);
             var data = json["ocs"]?["data"];
 
+            var quota = data?["quota"];
+            long quotaUsed  = quota?["used"]?.ToObject<long>()  ?? 0;
+            long quotaTotal = quota?["total"]?.ToObject<long>() ?? 0;
+
             return new UserAccount
             {
                 Id = data?["id"]?.ToString(),
                 DisplayName = data?["display-name"]?.ToString(),
                 Email = data?["email"]?.ToString(),
                 ServerUrl = _serverUrl,
-                Username = _username
+                Username = _username,
+                QuotaUsed = quotaUsed,
+                QuotaTotal = quotaTotal
             };
         }
 
@@ -116,15 +122,20 @@ namespace NextcloudUWP.Services
             return result;
         }
 
-        public async Task<bool> CreateShareLinkAsync(string path)
+        public async Task<string> CreateShareLinkAsync(string path)
         {
             var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 { "path", path },
                 { "shareType", "3" }
             });
-            var response = await _httpClient.PostAsync($"{_serverUrl}/ocs/v1.php/apps/files_sharing/api/v1/shares?format=json", content);
-            return response.IsSuccessStatusCode;
+            var response = await _httpClient.PostAsync(
+                $"{_serverUrl}/ocs/v1.php/apps/files_sharing/api/v1/shares?format=json", content);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var body = await response.Content.ReadAsStringAsync();
+            var json = JObject.Parse(body);
+            return json["ocs"]?["data"]?["url"]?.ToString();
         }
 
         public async Task<bool> DeleteShareAsync(int shareId)
@@ -141,6 +152,70 @@ namespace NextcloudUWP.Services
             });
             var response = await _httpClient.PostAsync($"{_serverUrl}/ocs/v2.php/apps/files/api/v1/directory?format=json", content);
             return response.IsSuccessStatusCode;
+        }
+
+        public async Task<List<Models.NextcloudNotification>> GetNotificationsAsync()
+        {
+            var result = new List<Models.NextcloudNotification>();
+            try
+            {
+                var response = await _httpClient.GetAsync(
+                    $"{_serverUrl}/ocs/v2.php/apps/notifications/api/v2/notifications?format=json");
+                if (!response.IsSuccessStatusCode) return result;
+                var content = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(content);
+                var data = json["ocs"]?["data"] as JArray;
+                if (data == null) return result;
+                foreach (var n in data)
+                {
+                    var dt = DateTime.MinValue;
+                    DateTime.TryParse(n["datetime"]?.ToString(), out dt);
+                    result.Add(new Models.NextcloudNotification
+                    {
+                        NotificationId = n["notification_id"]?.ToObject<int>() ?? 0,
+                        App      = n["app"]?.ToString(),
+                        Subject  = n["subject"]?.ToString(),
+                        Message  = n["message"]?.ToString(),
+                        Link     = n["link"]?.ToString(),
+                        Datetime = dt
+                    });
+                }
+            }
+            catch { }
+            return result;
+        }
+
+        public async Task<List<Models.NextcloudActivity>> GetActivitiesAsync()
+        {
+            var result = new List<Models.NextcloudActivity>();
+            try
+            {
+                var response = await _httpClient.GetAsync(
+                    $"{_serverUrl}/ocs/v2.php/apps/activity/api/v2/activity?format=json&limit=50");
+                if (!response.IsSuccessStatusCode) return result;
+                var content = await response.Content.ReadAsStringAsync();
+                var json = JObject.Parse(content);
+                var data = json["ocs"]?["data"] as JArray;
+                if (data == null) return result;
+                foreach (var a in data)
+                {
+                    var dt = DateTime.MinValue;
+                    DateTime.TryParse(a["datetime"]?.ToString(), out dt);
+                    result.Add(new Models.NextcloudActivity
+                    {
+                        ActivityId  = a["activity_id"]?.ToObject<int>() ?? 0,
+                        App         = a["app"]?.ToString(),
+                        Type        = a["type"]?.ToString(),
+                        Subject     = a["subject"]?.ToString(),
+                        Message     = a["message"]?.ToString(),
+                        ObjectName  = a["object_name"]?.ToString(),
+                        Link        = a["link"]?.ToString(),
+                        Datetime    = dt
+                    });
+                }
+            }
+            catch { }
+            return result;
         }
 
         public HttpClient GetRawHttpClient()

@@ -30,6 +30,13 @@
                        VerticalAlignment="Center" FontSize="18"
                        Margin="12,0,0,0" />
             <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <AppBarButton x:Name="SearchButton" Icon="Find"
+                              Foreground="White" Click="Search_Click" />
+                <AppBarButton x:Name="SortButton" Foreground="White" Click="Sort_Click">
+                    <AppBarButton.Icon>
+                        <FontIcon Glyph="&#xE8CB;" FontFamily="Segoe MDL2 Assets" />
+                    </AppBarButton.Icon>
+                </AppBarButton>
                 <AppBarButton x:Name="RefreshButton" Icon="Refresh"
                               Foreground="White" Click="RefreshButton_Click" />
                 <AppBarButton x:Name="UploadButton" Icon="Upload"
@@ -45,20 +52,25 @@
                        Foreground="#757575"
                        Visibility="Collapsed" />
             <ListView x:Name="FileListView"
-                      SelectionChanged="FileListView_SelectionChanged"
                       IsItemClickEnabled="True"
                       ItemClick="FileListView_ItemClick">
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Padding="4,8" HorizontalAlignment="Stretch">
+                        <Grid Padding="4,8" HorizontalAlignment="Stretch"
+                              RightTapped="File_RightTapped"
+                              Holding="File_Holding">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="48" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <FontIcon Grid.Column="0" x:Name="FileIcon"
-                                      Glyph="&#xE7C3;" FontSize="32"
-                                      Foreground="#0082c9" />
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding IconGlyph}"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="28" Foreground="#0082c9"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}"
                                            FontSize="14" FontWeight="SemiBold" />
@@ -66,6 +78,12 @@
                                            FontSize="12" Foreground="#757575" />
                             </StackPanel>
                             <TextBlock Grid.Column="2"
+                                       Text="{Binding FavoriteGlyph}"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="14" Foreground="#f0a800"
+                                       VerticalAlignment="Center"
+                                       Margin="4,0" />
+                            <TextBlock Grid.Column="3"
                                        Text="{Binding SizeText}"
                                        FontSize="12" Foreground="#757575"
                                        VerticalAlignment="Center"
@@ -89,7 +107,10 @@
             <CommandBar.SecondaryCommands>
                 <AppBarButton Label="Settings" Click="Settings_Click" />
                 <AppBarButton Label="Accounts" Click="Accounts_Click" />
-                <AppBarButton Label="Offline Files" Click="OfflineFiles_Click" />
+                <AppBarButton Label="Search" Click="Search_Click" />
+                <AppBarButton Label="Trash" Click="Trashbin_Click" />
+                <AppBarButton Label="Notifications" Click="Notifications_Click" />
+                <AppBarButton Label="Activity" Click="Activities_Click" />
             </CommandBar.SecondaryCommands>
         </CommandBar>
     </Grid>

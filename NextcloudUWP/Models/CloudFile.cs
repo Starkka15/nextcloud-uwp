@@ -19,13 +19,29 @@ namespace NextcloudUWP.Models
         public bool IsAvailableOffline { get; set; }
         public string LocalPath { get; set; }
 
+        public bool HasPreview { get; set; }
+
         public bool IsImage => MimeType?.StartsWith("image/") == true;
         public bool IsVideo => MimeType?.StartsWith("video/") == true;
         public bool IsAudio => MimeType?.StartsWith("audio/") == true;
-        public bool IsDocument => MimeType != null && (
-            MimeType.StartsWith("application/pdf") ||
-            MimeType.StartsWith("application/vnd") ||
-            MimeType.StartsWith("text/"));
+        public bool IsText => MimeType != null && (MimeType.StartsWith("text/") || MimeType == "application/json" || MimeType == "application/xml");
+        public bool IsPdf => MimeType == "application/pdf";
+        public bool IsDocument => IsPdf || MimeType?.StartsWith("application/vnd") == true || IsText;
+
+        // Segoe MDL2 Assets glyph for use in file list
+        public string IconGlyph
+        {
+            get
+            {
+                if (IsFolder) return "\uE8B7";   // Folder
+                if (IsImage)  return "\uEB9F";   // Picture
+                if (IsVideo)  return "\uE8B2";   // Video
+                if (IsAudio)  return "\uE8D6";   // MusicNote
+                if (IsPdf)    return "\uEA90";   // PDF
+                if (IsText)   return "\uE8A5";   // Document
+                return "\uE7C3";                  // Page (generic)
+            }
+        }
 
         public string DetailText
         {
@@ -38,6 +54,7 @@ namespace NextcloudUWP.Models
         }
 
         public string SizeText => IsFolder ? "" : FormatSize(Size);
+        public string FavoriteGlyph => IsFavorite ? "\uE735" : "";
 
         private static string FormatSize(long bytes)
         {
