@@ -18,16 +18,39 @@ Tested on: **Lumia 1520** · Build 10.0.15254.603 (Mobile 1709) · ARM32
 - Delete (moves to Nextcloud trash)
 - Favorite / unfavorite (star indicator in file list)
 - Share — creates a public link and copies it to clipboard
+- Copy files between folders
+- Move files between folders
+- File info dialog (name, size, path, modified date)
+
+### File Previews
+- **Image viewer** — inline viewer with pinch-to-zoom and pan (ScrollViewer)
+- **Video/Audio player** — `MediaPlayerElement` with transport controls, downloads to temp first
+- **Text viewer** — plain text in Consolas, 512 KB cap
 
 ### Search
 - Full-text DAV SEARCH across your entire Nextcloud
 - Tap a result to open or navigate into it
+
+### Sort
+- Sort by name, date modified, or size
+- Folders always appear above files regardless of sort order
+
+### File Icons
+- Dynamic Segoe MDL2 glyphs by file type (folder, image, video, audio, PDF, document, generic)
 
 ### Trash Bin
 - List deleted files with original location and deletion date
 - Restore individual files
 - Delete permanently
 - Empty entire trash
+
+### Notifications
+- Notifications page — full list from the OCS Notifications API
+- **Background polling** (every 15 min) — shows toast for new notifications, updates badge count
+- **Live tile** — displays current quota usage on medium and wide tiles
+
+### Activities
+- Activities page — full feed from the OCS Activity API (file changes, shares, comments)
 
 ### Accounts
 - Multi-account support — add, remove, and switch accounts
@@ -39,12 +62,19 @@ Tested on: **Lumia 1520** · Build 10.0.15254.603 (Mobile 1709) · ARM32
 - Configurable Nextcloud destination path (default: `/Photos/AutoUpload`)
 - Skips already-uploaded files (tracks last sync timestamp)
 - Progress bar with live file count and final uploaded/skipped/failed summary
+- **Background auto-sync** (every 30 min) — runs without the app open
+
+### Background Tasks
+- In-process background tasks (no separate WinRT component required)
+- Notification polling: 15 min timer · internet condition · shows toasts · updates tile badge
+- Auto-upload sync: 30 min timer · internet condition · uses persisted folder access token
+- Toggles in Settings page with OS permission request on first enable
 
 ### UI
 - Nextcloud blue (#0082c9) header throughout
 - Favorite star shown inline in file list
-- Context menu on hold/right-tap: Download, Rename, Favorite, Share, Delete
-- Settings page with quota progress bar
+- Context menu on hold/right-tap: Download, Rename, Favorite, Share, Copy, Move, Info, Delete
+- Settings page with quota progress bar, background task toggles, and version info
 
 ---
 
@@ -81,41 +111,48 @@ Use `GetNativeRuntime21ARM.ps1` to download the .NET Native packages from NuGet 
 ```
 NextcloudUWP/
 ├── Models/
-│   ├── CloudFile.cs          — file/folder with computed display properties
-│   ├── TrashbinFile.cs       — trashbin item model
-│   └── UserAccount.cs        — account with quota, display name, active flag
+│   ├── CloudFile.cs              — file/folder with type detection, icon glyphs, preview flags
+│   ├── TrashbinFile.cs           — trashbin item model
+│   ├── UserAccount.cs            — account with quota, display name, active flag
+│   ├── NextcloudNotification.cs  — OCS notification model
+│   └── NextcloudActivity.cs      — OCS activity model
 ├── Services/
-│   ├── WebDavClient.cs       — PROPFIND, PUT, GET, DELETE, MOVE, COPY,
-│   │                           SEARCH (DASL), trashbin operations
-│   ├── NextcloudClient.cs    — OCS API: user info, capabilities, share links
-│   ├── SettingsService.cs    — multi-account storage (JSON in LocalSettings)
-│   └── SyncService.cs        — auto-upload: scan folder, skip already-synced
+│   ├── WebDavClient.cs           — PROPFIND, PUT, GET, DELETE, MOVE, COPY, MKCOL,
+│   │                               PROPPATCH, SEARCH (DASL), trashbin operations
+│   ├── NextcloudClient.cs        — OCS API: user info, capabilities, shares, notifications, activities
+│   ├── SettingsService.cs        — multi-account storage, background task prefs, auto-upload state
+│   ├── SyncService.cs            — auto-upload: scan folder, skip already-synced
+│   ├── BackgroundTaskManager.cs  — register/unregister in-process background tasks
+│   └── TileService.cs            — live tile XML (medium + wide), badge updates
 ├── ViewModels/
-│   ├── MainViewModel.cs      — file ops, search, trashbin, favorites, sharing
-│   └── LoginViewModel.cs     — login flow with server validation
+│   ├── MainViewModel.cs          — file ops, search, trashbin, favorites, sharing, copy/move
+│   └── LoginViewModel.cs         — login flow with server validation
 └── Views/
-    ├── MainPage              — file browser + context menu
-    ├── LoginPage             — login / add-account
-    ├── AccountsPage          — account switcher
-    ├── SettingsPage          — account info, quota, auto-upload
-    ├── SearchPage            — DAV search
-    └── TrashbinPage          — trash list + restore/delete
+    ├── MainPage                  — file browser + context menu + sort
+    ├── LoginPage                 — login / add-account
+    ├── AccountsPage              — account switcher
+    ├── SettingsPage              — account info, quota, auto-upload, background task toggles
+    ├── SearchPage                — DAV search results
+    ├── TrashbinPage              — trash list + restore/delete
+    ├── ImagePreviewPage          — pinch-to-zoom image viewer
+    ├── MediaPlayerPage           — video/audio player
+    ├── TextViewerPage            — plain text viewer
+    ├── NotificationsPage         — OCS notifications list
+    └── ActivitiesPage            — OCS activity feed
 ```
 
 ---
 
 ## Planned
 
-- **Image previewer** — inline image viewer with pinch-to-zoom
-- **Media playback** — audio and video via `MediaPlayerElement`
+- **Passcode / PIN lock** — app-level lock screen
+- **Login Flow v2** — QR / WebView-based auth for modern Nextcloud servers
+- **Share with user/group** — internal share via OCS shares API
+- **PDF viewer** — inline PDF rendering
 - **Offline files** — mark files for offline access, sync queue
-- **Background sync** — periodic sync via background task (manifest/activation issues on W10M, paused)
 - **E2E encryption** — end-to-end encrypted folder support
-- **Text/Markdown editor** — basic editing via WebView
 - **Contact & calendar backup** — sync to Nextcloud Contacts/Calendar via CardDAV/CalDAV
-- **Live tile** — quota or recent files on the Start tile
 - **Share target** — receive files from other apps via the share contract
-- **QR login** — scan QR code from web interface (Login Flow v2)
 - **Document scanning** — capture and upload via camera
 
 ---
