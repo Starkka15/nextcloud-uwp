@@ -39,14 +39,6 @@
         <uap:LockScreen Notification="badgeAndTileText"
                         BadgeLogo="Assets\Square44x44Logo.scale-200.png" />
       </uap:VisualElements>
-      <Extensions>
-        <!-- In-process background tasks (no EntryPoint = routes to App.OnBackgroundActivated) -->
-        <Extension Category="windows.backgroundTasks">
-          <BackgroundTasks>
-            <Task Type="timer" />
-          </BackgroundTasks>
-        </Extension>
-      </Extensions>
     </Application>
   </Applications>
   <Capabilities>
