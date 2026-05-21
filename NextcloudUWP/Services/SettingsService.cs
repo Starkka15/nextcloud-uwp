@@ -122,6 +122,21 @@ namespace NextcloudUWP.Services
             set => _local.Values["LastSeenNotificationId"] = value;
         }
 
+        // ── Security settings ───────────────────────────────────────────
+
+        public bool AppLockEnabled
+        {
+            get => (_local.Values["AppLockEnabled"] as bool?) ?? false;
+            set => _local.Values["AppLockEnabled"] = value;
+        }
+
+        // When set, the SHA-256 thumbprint of the pinned TLS cert for the active server.
+        public string PinnedCertThumbprint
+        {
+            get => _local.Values["PinnedCertThumbprint"] as string;
+            set => _local.Values["PinnedCertThumbprint"] = value;
+        }
+
         // ── Convenience props (active account) ──────────────────────────
 
         public bool HasCredentials => GetActiveAccount() != null;

@@ -138,6 +138,45 @@
                 <TextBlock x:Name="BgTaskStatusText" FontSize="11" Foreground="#757575"
                            Margin="0,2,0,0" />
 
+                <!-- Security section -->
+                <TextBlock Text="SECURITY" FontSize="11" Foreground="#757575"
+                           Margin="0,16,0,8" />
+                <StackPanel Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                            Padding="16" Margin="0,0,0,4">
+
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="App lock" FontSize="14" FontWeight="SemiBold" />
+                            <TextBlock Text="Require biometric/PIN when app resumes"
+                                       FontSize="12" Foreground="#757575" />
+                        </StackPanel>
+                        <ToggleSwitch x:Name="AppLockToggle" Grid.Column="1"
+                                      Margin="0" Toggled="AppLockToggle_Toggled" />
+                    </Grid>
+
+                    <TextBlock Text="Certificate pinning" FontSize="14" FontWeight="SemiBold"
+                               Margin="0,0,0,4" />
+                    <TextBlock x:Name="CertThumbprintText" FontSize="11"
+                               Foreground="#757575" TextWrapping="Wrap"
+                               FontFamily="Consolas" Margin="0,0,0,8" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="CheckCertButton" Content="Check cert"
+                                Click="CheckCertButton_Click" />
+                        <Button x:Name="PinCertButton" Content="Pin current cert"
+                                Click="PinCertButton_Click" IsEnabled="False" />
+                        <Button x:Name="ClearPinButton" Content="Clear pin"
+                                Click="ClearPinButton_Click" />
+                    </StackPanel>
+                    <ProgressRing x:Name="CertRing" IsActive="False"
+                                  Width="24" Height="24" Margin="0,8,0,0" />
+                    <TextBlock x:Name="CertStatusText" FontSize="12" Foreground="#757575"
+                               TextWrapping="Wrap" Margin="0,4,0,0" />
+                </StackPanel>
+
                 <!-- App section -->
                 <TextBlock Text="APP" FontSize="11" Foreground="#757575"
                            Margin="0,16,0,8" />

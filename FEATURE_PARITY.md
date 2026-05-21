@@ -1,6 +1,6 @@
 # Nextcloud UWP - Feature Parity Tracker
 
-Target: Windows 10 Mobile Creators Update (Build 15063)
+Target: Windows 10 Mobile Fall Creators Update (Build 16299)
 
 ## Core File Management
 
@@ -12,13 +12,18 @@ Target: Windows 10 Mobile Creators Update (Build 15063)
 | Auth (basic) | Done | NextcloudClient + SettingsService |
 | Share link creation | Done | NextcloudClient (OCS shares API) |
 | Move/Copy/Delete | Done | WebDavClient (MOVE/COPY/DELETE) |
+| Share with user | Done | OCS shares API (shareType=0) |
+| Share with group | Done | OCS shares API (shareType=1) |
+| Share permissions editor | Done | ShareFilePage context menu |
+| File comments | Done | CommentsPage + OCS comments DAV API |
 
 ## Account & Authentication
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Multi-account | Not started | Account management UI + collection |
-| OAuth2 / Login Flow v2 | Not started | WebView-based login flow |
+| Multi-account | Done | AccountsPage + SettingsService |
+| OAuth2 / Login Flow v2 | Done | LoginFlowPage WebView + poll endpoint |
+| Basic auth | Done | LoginPage username/password |
 | Passcode / biometric lock | Not started | Windows Hello or PIN |
 | SAML / SSO | Not started | WebView auth |
 | Deep link login (nc://) | Not started | Protocol activation in Package.appxmanifest |
@@ -28,52 +33,56 @@ Target: Windows 10 Mobile Creators Update (Build 15063)
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Offline file browsing | Not started | SQLite cache of file listings |
-| Offline operation queue | Not started | SQLite queue + BackgroundTask |
-| Two-way sync | Not started | BackgroundTask with TimeTrigger |
-| Auto-upload (photos/videos) | Not started | BackgroundTask + MediaLibrary trigger |
-| Conflict resolution | Not started | ContentDialog picker UI |
+| Offline file browsing | Done | CacheService (JSON in LocalFolder) |
+| Offline operation queue | Done | OfflineQueueService — queues delete/rename/move/upload |
+| Two-way sync | Done | SyncService.TwoWaySyncAsync — upload local-only, download remote-only |
+| Auto-upload (photos/videos) | Done | SyncService.UploadFolderAsync + BackgroundTask |
+| Conflict resolution | Done | ConflictResolution enum — KeepRemote/KeepLocal/SaveBoth |
 | Connectivity monitoring | Not started | NetworkInformation.NetworkStatusChanged |
 
 ## Media
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Audio playback | Not started | MediaPlayerElement + BackgroundMediaPlayer |
-| Video playback | Not started | MediaPlayerElement + MediaElement |
-| Background audio | Not started | BackgroundTask (audio) |
-| Image preview (pinch-zoom) | Not started | ScrollViewer + DirectManipulation |
-| GIF support | Not started | Animated image or WebView |
-| SVG rendering | Not started | WebView (native SVG) |
+| Audio playback | Done | MediaPlayerPage + App.AppMediaPlayer singleton |
+| Video playback | Done | MediaPlayerPage + App.AppMediaPlayer singleton |
+| Background audio | Done | App.AppMediaPlayer singleton + backgroundMediaPlayback capability + SMTC |
+| Image preview (pinch-zoom) | Done | ImagePreviewPage (ScrollViewer + DirectManipulation) |
+| GIF support | Done | WebViewPage (EdgeHTML renders animated GIFs natively) |
+| SVG rendering | Done | WebViewPage (EdgeHTML renders SVG natively) |
+| PDF preview | Done | WebViewPage (EdgeHTML renders PDF natively) |
+| Markdown rendering | Done | WebViewPage inline Markdown→HTML converter |
 | Image crop/rotate | Not started | Custom WriteableBitmap manipulation |
-| Thumbnail caching | Not started | LocalFolder + in-memory BitmapImage cache |
+| Thumbnail caching | Done | ThumbnailCacheService — LocalFolder/thumbcache/ |
 
 ## Sharing & Collaboration
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Share with user/group | Not started | OCS shares API |
-| Share link management | Not started | OCS shares API |
-| Share permissions editor | Not started | ContentDialog UI |
-| File comments | Not started | OCS comments API |
+| Share with user/group | Done | ShareFilePage + OCS shares API |
+| Share link management | Done | ShareFilePage — list/delete existing shares |
+| Share permissions editor | Done | Update permissions via OCS PUT |
+| File comments | Done | CommentsPage + WebDAV comments endpoint |
 
 ## Content Editing
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Text file editing | Not started | WebView or native TextBox |
-| Collabora/Nextcloud Office | Not started | WebView (EdgeHTML) |
-| Markdown rendering | Not started | WebView with JS renderer or custom |
-| PDF preview | Not started | WebView or PDF viewer API |
+| Text file editing | Done | TextViewerPage edit mode — PUT on save |
+| Markdown rendering | Done | WebViewPage inline renderer |
+| PDF preview | Done | WebViewPage (EdgeHTML) |
+| SVG rendering | Done | WebViewPage (EdgeHTML) |
+| Collabora/Nextcloud Office | Not started | WebView pointing to server editor URL |
 
 ## Server Features
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Trash bin (delete/restore) | Not started | OCS trashbin API |
-| Unified search | Not started | OCS unified search API |
-| Server notifications | Not started | BackgroundTask polling + Toast |
-| Capabilities detection | Not started | OCS capabilities API (already stubbed) |
+| Trash bin (delete/restore) | Done | TrashbinPage + WebDavClient trashbin methods |
+| Unified search | Done | SearchPage + WebDavClient DAVSEARCH |
+| Server notifications | Done | Background polling + toast + badge + NotificationsPage |
+| Activity feed | Done | ActivitiesPage + NextcloudClient |
+| Capabilities detection | Partial | GetCapabilitiesAsync stubbed |
 | External links | Not started | WebView |
 | AI Assistant | Not started | WebView or native chat UI |
 
@@ -81,8 +90,8 @@ Target: Windows 10 Mobile Creators Update (Build 15063)
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| Live tile / dashboard widget | Not started | Adaptive tiles + BackgroundTask updater |
-| Toast notifications | Not started | ToastNotificationManager |
+| Live tile / dashboard widget | Done | TileService (quota + badge) |
+| Toast notifications | Done | Background polling → ToastNotificationManager |
 | File picker contract | Not started | FileOpenPicker / FolderPicker integration |
 | Share target (receive files) | Not started | ShareTarget declaration in manifest |
 | Contact backup/restore | Not started | Windows.ApplicationModel.Contacts |
@@ -102,8 +111,8 @@ Target: Windows 10 Mobile Creators Update (Build 15063)
 
 | Android Feature | Status | UWP Approach |
 |---|---|---|
-| SQLite database (12 tables) | Not started | SQLite.Net-PCL (PackageReference added) |
-| File metadata cache | Not started | FileEntity table |
-| Upload queue persistence | Not started | UploadEntity table |
+| Offline file listing cache | Done | CacheService (JSON files in LocalFolder/filecache/) |
+| Offline operation queue | Done | OfflineQueueService (JSON in LocalFolder) |
+| Thumbnail cache | Done | ThumbnailCacheService (LocalFolder/thumbcache/) |
 | Key-value settings | Done | SettingsService (ApplicationData) |
-| Disk-based image cache | Not started | LocalFolder + LRU eviction |
+| Upload queue persistence | Done | OfflineQueueService |

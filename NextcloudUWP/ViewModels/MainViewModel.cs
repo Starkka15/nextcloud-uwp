@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Windows.Storage;
 using NextcloudUWP.Models;
@@ -10,17 +11,24 @@ namespace NextcloudUWP.ViewModels
 {
     public class MainViewModel
     {
-        private readonly WebDavClient _webDav;
-        private readonly NextcloudClient _nextcloud;
-        private readonly SettingsService _settings;
+        private readonly WebDavClient          _webDav;
+        private readonly NextcloudClient       _nextcloud;
+        private readonly SettingsService       _settings;
+        private readonly CacheService          _cache;
+        private readonly ThumbnailCacheService _thumbs;
+        private readonly OfflineQueueService   _queue;
 
         public string CurrentPath { get; private set; } = "/";
+        public bool   IsOffline   { get; private set; }
 
         public MainViewModel()
         {
-            _settings = new SettingsService();
-            _webDav = new WebDavClient();
+            _settings  = new SettingsService();
+            _webDav    = new WebDavClient();
             _nextcloud = new NextcloudClient();
+            _cache     = new CacheService();
+            _thumbs    = new ThumbnailCacheService();
+            _queue     = new OfflineQueueService();
             Reconfigure();
         }
 
@@ -30,17 +38,43 @@ namespace NextcloudUWP.ViewModels
             {
                 _webDav.Configure(_settings.ServerUrl, _settings.Username, _settings.Password);
                 _nextcloud.Configure(_settings.ServerUrl, _settings.Username, _settings.Password);
+                _thumbs.Configure(_settings.ServerUrl, _settings.Username, _settings.Password);
             }
         }
+
+        // ── File listing (with offline cache fallback) ────────────────────────
 
         public async Task<List<CloudFile>> GetFilesAsync(string path)
         {
             CurrentPath = path;
-            var files = await _webDav.ListFilesAsync(path);
-            if (files != null && files.Count > 0)
-                files.RemoveAt(0);
-            return files ?? new List<CloudFile>();
+            try
+            {
+                var files = await _webDav.ListFilesAsync(path);
+                if (files?.Count > 0) files.RemoveAt(0);
+                files = files ?? new List<CloudFile>();
+                await _cache.SaveAsync(path, files);
+                IsOffline = false;
+                return files;
+            }
+            catch (HttpRequestException)  { IsOffline = true; }
+            catch (TaskCanceledException) { IsOffline = true; }
+
+            return await _cache.LoadAsync(path) ?? new List<CloudFile>();
         }
+
+        public async Task LoadThumbnailsAsync(IEnumerable<CloudFile> files)
+        {
+            foreach (var file in files)
+            {
+                if (file.IsImage || file.HasPreview)
+                {
+                    var bmp = await _thumbs.GetThumbnailAsync(file);
+                    if (bmp != null) file.ThumbnailBitmap = bmp;
+                }
+            }
+        }
+
+        // ── Upload / download ─────────────────────────────────────────────────
 
         public async Task UploadFileAsync(StorageFile file, string remotePath)
         {
@@ -48,8 +82,21 @@ namespace NextcloudUWP.ViewModels
             using (var stream = ras.AsStreamForRead())
             {
                 var fullPath = $"{remotePath.TrimEnd('/')}/{file.Name}";
-                var ok = await _webDav.UploadFileAsync(fullPath, stream,
-                    file.ContentType ?? "application/octet-stream");
+                bool ok;
+                try
+                {
+                    ok = await _webDav.UploadFileAsync(fullPath, stream,
+                        file.ContentType ?? "application/octet-stream");
+                }
+                catch (HttpRequestException)
+                {
+                    await _queue.EnqueueAsync(new OperationEntity
+                    {
+                        OperationType = "upload",
+                        SourcePath    = fullPath
+                    });
+                    return;
+                }
                 if (!ok) throw new Exception("Upload failed.");
             }
         }
@@ -57,38 +104,58 @@ namespace NextcloudUWP.ViewModels
         public async Task CreateFolderAsync(string name, string parentPath)
         {
             var fullPath = $"{parentPath.TrimEnd('/')}/{name}";
-            if (!await _webDav.CreateFolderAsync(fullPath))
-                throw new Exception("Failed to create folder.");
+            try
+            {
+                if (!await _webDav.CreateFolderAsync(fullPath))
+                    throw new Exception("Failed to create folder.");
+            }
+            catch (HttpRequestException)
+            {
+                await _queue.EnqueueAsync(new OperationEntity
+                {
+                    OperationType = "mkdir",
+                    SourcePath    = fullPath
+                });
+            }
         }
 
         public async Task<bool> DeleteFileAsync(CloudFile file)
         {
-            return await _webDav.DeleteFileAsync(file.Path);
+            try
+            {
+                return await _webDav.DeleteFileAsync(file.Path);
+            }
+            catch (HttpRequestException)
+            {
+                await _queue.EnqueueAsync(new OperationEntity
+                {
+                    OperationType = "delete",
+                    SourcePath    = file.Path
+                });
+                return true;
+            }
         }
 
         public async Task OpenFileAsync(CloudFile file)
         {
             var tempFolder = ApplicationData.Current.TemporaryFolder;
-            var localFile = await tempFolder.CreateFileAsync(file.Name,
-                CreationCollisionOption.ReplaceExisting);
+            var localFile  = await tempFolder.CreateFileAsync(
+                file.Name, CreationCollisionOption.ReplaceExisting);
 
-            using (var downloadStream = await _webDav.DownloadFileAsync(file.Path))
+            using (var dl = await _webDav.DownloadFileAsync(file.Path))
             using (var ras = await localFile.OpenAsync(FileAccessMode.ReadWrite))
-            using (var fileStream = ras.AsStreamForWrite())
-            {
-                await downloadStream.CopyToAsync(fileStream);
-            }
+            using (var fs  = ras.AsStreamForWrite())
+                await dl.CopyToAsync(fs);
+
             await Windows.System.Launcher.LaunchFileAsync(localFile);
         }
 
         public async Task DownloadToDeviceAsync(CloudFile file, StorageFile destFile)
         {
-            using (var downloadStream = await _webDav.DownloadFileAsync(file.Path))
+            using (var dl  = await _webDav.DownloadFileAsync(file.Path))
             using (var ras = await destFile.OpenAsync(FileAccessMode.ReadWrite))
-            using (var fileStream = ras.AsStreamForWrite())
-            {
-                await downloadStream.CopyToAsync(fileStream);
-            }
+            using (var fs  = ras.AsStreamForWrite())
+                await dl.CopyToAsync(fs);
         }
 
         public async Task RenameAsync(CloudFile file, string newName)
@@ -97,69 +164,69 @@ namespace NextcloudUWP.ViewModels
                 ? file.Path.Substring(0, file.Path.TrimEnd('/').LastIndexOf('/'))
                 : "/";
             var destPath = $"{parentPath.TrimEnd('/')}/{newName}";
-            if (!await _webDav.MoveFileAsync(file.Path, destPath))
-                throw new Exception("Rename failed.");
+            try
+            {
+                if (!await _webDav.MoveFileAsync(file.Path, destPath))
+                    throw new Exception("Rename failed.");
+            }
+            catch (HttpRequestException)
+            {
+                await _queue.EnqueueAsync(new OperationEntity
+                {
+                    OperationType = "rename",
+                    SourcePath    = file.Path,
+                    DestPath      = destPath
+                });
+            }
         }
 
         public async Task<bool> SetFavoriteAsync(CloudFile file, bool favorite)
         {
             var value = favorite ? "1" : "0";
-            var path = file.Path.StartsWith("/") ? file.Path : "/" + file.Path;
-            var request = new System.Net.Http.HttpRequestMessage(
-                new System.Net.Http.HttpMethod("PROPPATCH"),
+            var path  = file.Path.StartsWith("/") ? file.Path : "/" + file.Path;
+            var req   = new HttpRequestMessage(
+                new HttpMethod("PROPPATCH"),
                 $"{_settings.ServerUrl}/remote.php/dav/files/{_settings.Username}{path}");
-            request.Content = new System.Net.Http.StringContent(
+            req.Content = new StringContent(
                 $@"<?xml version=""1.0""?>
 <d:propertyupdate xmlns:d=""DAV:"" xmlns:oc=""http://owncloud.org/ns"">
   <d:set><d:prop><oc:favorite>{value}</oc:favorite></d:prop></d:set>
 </d:propertyupdate>",
                 System.Text.Encoding.UTF8, "application/xml");
-            var response = await _nextcloud.GetRawHttpClient().SendAsync(request);
-            return response.IsSuccessStatusCode;
+            var resp = await _nextcloud.GetRawHttpClient().SendAsync(req);
+            return resp.IsSuccessStatusCode;
         }
 
         public async Task<string> CreateShareLinkAsync(CloudFile file)
-        {
-            return await _nextcloud.CreateShareLinkAsync(file.Path);
-        }
+            => await _nextcloud.CreateShareLinkAsync(file.Path);
 
         public async Task<List<CloudFile>> SearchAsync(string query)
         {
             if (string.IsNullOrWhiteSpace(query)) return new List<CloudFile>();
-            var results = await _webDav.SearchAsync(query);
-            return results ?? new List<CloudFile>();
+            return await _webDav.SearchAsync(query) ?? new List<CloudFile>();
         }
+
+        // ── Trashbin ──────────────────────────────────────────────────────────
 
         public async Task<List<TrashbinFile>> ListTrashbinAsync()
-        {
-            return await _webDav.ListTrashbinAsync();
-        }
+            => await _webDav.ListTrashbinAsync();
 
         public async Task<bool> RestoreTrashbinFileAsync(TrashbinFile file)
-        {
-            return await _webDav.RestoreTrashbinFileAsync(
-                file.TrashbinPath, file.OriginalFilename);
-        }
+            => await _webDav.RestoreTrashbinFileAsync(file.TrashbinPath, file.OriginalFilename);
 
         public async Task<bool> DeleteTrashbinPermanentlyAsync(TrashbinFile file)
-        {
-            return await _webDav.DeleteTrashbinPermanentlyAsync(file.TrashbinPath);
-        }
+            => await _webDav.DeleteTrashbinPermanentlyAsync(file.TrashbinPath);
 
         public async Task<bool> EmptyTrashbinAsync()
-        {
-            return await _webDav.EmptyTrashbinAsync();
-        }
+            => await _webDav.EmptyTrashbinAsync();
 
-        public async Task<System.IO.Stream> GetDownloadStreamAsync(CloudFile file)
-        {
-            return await _webDav.DownloadFileAsync(file.Path);
-        }
+        // ── Copy / Move ───────────────────────────────────────────────────────
+
+        public async Task<Stream> GetDownloadStreamAsync(CloudFile file)
+            => await _webDav.DownloadFileAsync(file.Path);
 
         public async Task<bool> CopyAsync(CloudFile file, string destPath)
-        {
-            return await _webDav.CopyFileAsync(file.Path, destPath, overwrite: false);
-        }
+            => await _webDav.CopyFileAsync(file.Path, destPath, overwrite: false);
 
         public async Task<bool> MoveToFolderAsync(CloudFile file, string destFolderPath)
         {
@@ -167,14 +234,69 @@ namespace NextcloudUWP.ViewModels
             return await _webDav.MoveFileAsync(file.Path, destPath, overwrite: false);
         }
 
+        // ── Notifications / Activities ────────────────────────────────────────
+
         public async Task<List<Models.NextcloudNotification>> GetNotificationsAsync()
-        {
-            return await _nextcloud.GetNotificationsAsync();
-        }
+            => await _nextcloud.GetNotificationsAsync();
 
         public async Task<List<Models.NextcloudActivity>> GetActivitiesAsync()
+            => await _nextcloud.GetActivitiesAsync();
+
+        // ── Shares ────────────────────────────────────────────────────────────
+
+        public async Task<List<ShareInfo>> GetSharesForFileAsync(CloudFile file)
+            => await _nextcloud.GetSharesForFileAsync(file.Path);
+
+        public async Task<ShareInfo> CreateUserShareAsync(CloudFile file, string userId, int permissions = 17)
+            => await _nextcloud.CreateUserShareAsync(file.Path, userId, permissions);
+
+        public async Task<ShareInfo> CreateGroupShareAsync(CloudFile file, string groupId, int permissions = 17)
+            => await _nextcloud.CreateGroupShareAsync(file.Path, groupId, permissions);
+
+        public async Task<bool> DeleteShareAsync(int shareId)
+            => await _nextcloud.DeleteShareAsync(shareId);
+
+        public async Task<bool> UpdateSharePermissionsAsync(int shareId, int permissions)
+            => await _nextcloud.UpdateSharePermissionsAsync(shareId, permissions);
+
+        public async Task<List<(string id, string displayName)>> SearchUsersAsync(string query)
+            => await _nextcloud.SearchUsersAsync(query);
+
+        public async Task<List<string>> SearchGroupsAsync(string query)
+            => await _nextcloud.SearchGroupsAsync(query);
+
+        // ── Comments ─────────────────────────────────────────────────────────
+
+        public async Task<List<FileComment>> GetCommentsAsync(CloudFile file)
         {
-            return await _nextcloud.GetActivitiesAsync();
+            if (string.IsNullOrEmpty(file.RemoteId)) return new List<FileComment>();
+            return await _nextcloud.GetCommentsAsync(file.RemoteId);
+        }
+
+        public async Task<bool> PostCommentAsync(CloudFile file, string message)
+        {
+            if (string.IsNullOrEmpty(file.RemoteId)) return false;
+            return await _nextcloud.PostCommentAsync(file.RemoteId, message);
+        }
+
+        // ── Offline queue ─────────────────────────────────────────────────────
+
+        public async Task<List<OperationEntity>> GetPendingOperationsAsync()
+            => await _queue.GetPendingAsync();
+
+        public async Task ProcessOfflineQueueAsync()
+            => await _queue.ProcessQueueAsync(_webDav);
+
+        // ── Two-way sync ──────────────────────────────────────────────────────
+
+        public async Task<SyncResult> TwoWaySyncAsync(
+            StorageFolder localFolder,
+            string remotePath,
+            IProgress<string> progress = null,
+            Func<string, Task<ConflictResolution>> onConflict = null)
+        {
+            var sync = new SyncService();
+            return await sync.TwoWaySyncAsync(localFolder, remotePath, progress, onConflict);
         }
     }
 }

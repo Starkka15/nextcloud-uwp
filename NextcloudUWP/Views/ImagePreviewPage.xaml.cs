@@ -39,7 +39,21 @@ namespace NextcloudUWP.Views
 
                 var bmp = new BitmapImage();
                 await bmp.SetSourceAsync(ms.AsRandomAccessStream());
+                PreviewImage.Width  = bmp.PixelWidth;
+                PreviewImage.Height = bmp.PixelHeight;
                 PreviewImage.Source = bmp;
+
+                // Fit image to the viewport on first load
+                PreviewScrollViewer.UpdateLayout();
+                if (bmp.PixelWidth > 0 && bmp.PixelHeight > 0)
+                {
+                    var vw   = PreviewScrollViewer.ViewportWidth;
+                    var vh   = PreviewScrollViewer.ViewportHeight;
+                    var fit  = (float)Math.Min(vw / bmp.PixelWidth, vh / bmp.PixelHeight);
+                    fit = Math.Max(PreviewScrollViewer.MinZoomFactor,
+                          Math.Min(fit, PreviewScrollViewer.MaxZoomFactor));
+                    PreviewScrollViewer.ChangeView(null, null, fit, true);
+                }
             }
             catch (Exception ex)
             {

@@ -44,7 +44,7 @@ namespace NextcloudUWP.Services
         <d:getcontentlength />
         <d:resourcetype />
         <d:etag />
-        <oc:id />
+        <oc:fileid />
         <oc:size />
         <oc:permissions />
         <oc:favorite />
@@ -97,7 +97,7 @@ namespace NextcloudUWP.Services
 
                 var mimeType = prop.Element(DavNs + "getcontenttype")?.Value;
                 var etag = prop.Element(DavNs + "etag")?.Value?.Trim('"');
-                var remoteId = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "id")?.Value;
+                var remoteId = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "fileid")?.Value;
                 var permissions = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "permissions")?.Value;
                 var favoriteStr = prop.Element(XNamespace.Get("http://owncloud.org/ns") + "favorite")?.Value;
                 bool isFavorite = favoriteStr == "1";

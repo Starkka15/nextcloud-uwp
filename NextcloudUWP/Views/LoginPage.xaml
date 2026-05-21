@@ -34,6 +34,16 @@
                     HorizontalAlignment="Stretch" Click="LoginButton_Click"
                     Background="#0082c9" Foreground="White" />
 
+            <Button x:Name="FlowLoginButton" Content="Login with browser (Flow v2)"
+                    HorizontalAlignment="Stretch" Click="FlowLoginButton_Click"
+                    Background="Transparent" Foreground="#0082c9"
+                    Margin="0,8,0,0" />
+
+            <Button x:Name="QrLoginButton" Content="Scan QR code"
+                    HorizontalAlignment="Stretch" Click="QrLoginButton_Click"
+                    Background="Transparent" Foreground="#0082c9"
+                    Margin="0,4,0,0" />
+
             <ProgressRing x:Name="LoginProgress" HorizontalAlignment="Center"
                           IsActive="False" Margin="0,16,0,0" />
 

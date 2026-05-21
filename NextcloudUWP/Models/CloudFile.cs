@@ -1,9 +1,28 @@
 using System;
+using System.ComponentModel;
+using Windows.UI.Xaml.Media.Imaging;
 
 namespace NextcloudUWP.Models
 {
-    public class CloudFile
+    public class CloudFile : INotifyPropertyChanged
     {
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        private BitmapImage _thumbnailBitmap;
+        public BitmapImage ThumbnailBitmap
+        {
+            get => _thumbnailBitmap;
+            set
+            {
+                _thumbnailBitmap = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThumbnailBitmap)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowThumbnail)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowGlyph)));
+            }
+        }
+        public bool ShowThumbnail => _thumbnailBitmap != null;
+        public bool ShowGlyph     => _thumbnailBitmap == null;
+
         public string Name { get; set; }
         public string Path { get; set; }
         public string RemoteId { get; set; }

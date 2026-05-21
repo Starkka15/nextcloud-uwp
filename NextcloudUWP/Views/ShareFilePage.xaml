@@ -1,0 +1,133 @@
+<Page x:Class="NextcloudUWP.Views.ShareFilePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Background="#0082c9" Padding="12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Click="BackButton_Click"
+                    Foreground="White" Background="Transparent">
+                <SymbolIcon Symbol="Back" />
+            </Button>
+            <TextBlock x:Name="TitleText" Grid.Column="1"
+                       Foreground="White" VerticalAlignment="Center"
+                       FontSize="16" Margin="8,0,0,0"
+                       TextTrimming="CharacterEllipsis" />
+        </Grid>
+
+        <!-- Body -->
+        <ScrollViewer Grid.Row="1" Padding="16">
+            <StackPanel>
+
+                <!-- Existing shares -->
+                <TextBlock Text="Shared with" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,0,0,8" />
+                <ProgressRing x:Name="LoadingRing" IsActive="True"
+                              Width="40" Height="40" HorizontalAlignment="Left" />
+                <ListView x:Name="SharesList" SelectionMode="None"
+                          Visibility="Collapsed">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Padding="0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding ShareTypeLabel}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding PermissionsText}"
+                                               Foreground="#757575" FontSize="12" />
+                                    <TextBlock Text="{Binding Url}" FontSize="11"
+                                               Foreground="#0082c9"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <ToggleSwitch x:Name="PermSwitch" Grid.Column="1"
+                                             Header="" OffContent="Read" OnContent="Edit"
+                                             Margin="8,0" />
+                                <Button Grid.Column="2" Content="✕"
+                                        Tag="{Binding Id}"
+                                        Click="DeleteShare_Click"
+                                        Foreground="Red" Background="Transparent" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                <TextBlock x:Name="NoSharesText" Text="Not shared yet."
+                           Foreground="#757575" Visibility="Collapsed"
+                           Margin="0,0,0,16" />
+
+                <!-- Public link -->
+                <Button x:Name="CreateLinkButton"
+                        Content="+ Create public link"
+                        Background="#0082c9" Foreground="White"
+                        HorizontalAlignment="Stretch" Margin="0,16,0,16"
+                        Click="CreateLink_Click" />
+
+                <!-- Add user share -->
+                <TextBlock Text="Share with user" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,0,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="UserSearchBox" Grid.Column="0"
+                             PlaceholderText="Search users…"
+                             TextChanged="UserSearch_TextChanged" />
+                    <Button Grid.Column="1" Content="Share"
+                            Click="AddUserShare_Click"
+                            Background="#0082c9" Foreground="White"
+                            Margin="8,0,0,0" />
+                </Grid>
+                <ListView x:Name="UserResultsList" SelectionMode="Single"
+                          MaxHeight="200" Margin="0,4,0,0">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Padding="0,6" />
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Add group share -->
+                <TextBlock Text="Share with group" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,16,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="GroupSearchBox" Grid.Column="0"
+                             PlaceholderText="Search groups…"
+                             TextChanged="GroupSearch_TextChanged" />
+                    <Button Grid.Column="1" Content="Share"
+                            Click="AddGroupShare_Click"
+                            Background="#0082c9" Foreground="White"
+                            Margin="8,0,0,0" />
+                </Grid>
+                <ListView x:Name="GroupResultsList" SelectionMode="Single"
+                          MaxHeight="200" Margin="0,4,0,0">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" Padding="0,6" />
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <TextBlock x:Name="StatusText" Foreground="Red"
+                           Margin="0,12,0,0" TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

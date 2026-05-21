@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Windows.Networking.Connectivity;
 using Windows.UI.Xaml;
+using NextcloudUWP;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Input;
@@ -30,6 +32,17 @@ namespace NextcloudUWP.Views
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
+            // Biometric/PIN lock gate
+            var lockSettings = new SettingsService();
+            if (lockSettings.AppLockEnabled && !App.IsUnlocked)
+            {
+                Frame.Navigate(typeof(LockPage));
+                return;
+            }
+
+            NetworkInformation.NetworkStatusChanged += OnNetworkStatusChanged;
+            UpdateOfflineBanner();
+
             _viewModel.Reconfigure();
 
             if (e.NavigationMode == NavigationMode.Back)
@@ -51,6 +64,24 @@ namespace NextcloudUWP.Views
             }
         }
 
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            NetworkInformation.NetworkStatusChanged -= OnNetworkStatusChanged;
+        }
+
+        private async void OnNetworkStatusChanged(object sender)
+        {
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, UpdateOfflineBanner);
+        }
+
+        private void UpdateOfflineBanner()
+        {
+            var profile   = NetworkInformation.GetInternetConnectionProfile();
+            var connected = profile?.GetNetworkConnectivityLevel() >= NetworkConnectivityLevel.InternetAccess;
+            OfflineBanner.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         private async System.Threading.Tasks.Task LoadFiles(string path)
         {
             LoadingRing.IsActive = true;
@@ -63,7 +94,10 @@ namespace NextcloudUWP.Views
                 if (files != null && files.Count > 0)
                 {
                     var sorted = ApplySort(files);
-                    FileListView.ItemsSource = new ObservableCollection<CloudFile>(sorted);
+                    var collection = new ObservableCollection<CloudFile>(sorted);
+                    FileListView.ItemsSource = collection;
+                    // Load thumbnails in background — each file notifies UI via INotifyPropertyChanged
+                    _ = _viewModel.LoadThumbnailsAsync(sorted);
                 }
                 else
                 {
@@ -83,6 +117,9 @@ namespace NextcloudUWP.Views
             finally
             {
                 LoadingRing.IsActive = false;
+                // Show banner if last fetch fell back to cache
+                if (_viewModel.IsOffline)
+                    OfflineBanner.Visibility = Visibility.Visible;
             }
 
             UpdateBackButton();
@@ -127,14 +164,47 @@ namespace NextcloudUWP.Views
 
         private void OpenFileSmart(CloudFile file)
         {
-            if (file.IsImage)
+            var ext  = System.IO.Path.GetExtension(file.Name).ToLowerInvariant();
+            var mime = file.MimeType ?? "";
+
+            if (file.IsImage && mime != "image/gif")
                 Frame.Navigate(typeof(ImagePreviewPage), file);
             else if (file.IsVideo || file.IsAudio)
                 Frame.Navigate(typeof(MediaPlayerPage), file);
+            else if (mime == "text/markdown" || ext == ".md" || ext == ".markdown"
+                     || file.IsPdf || mime == "image/svg+xml" || mime == "image/gif")
+                Frame.Navigate(typeof(WebViewPage), file);
             else if (file.IsText)
                 Frame.Navigate(typeof(TextViewerPage), file);
+            else if (IsOfficeFile(file))
+                OpenInOffice(file);
             else
-                OpenFile(file); // download to temp + launch external
+                OpenFile(file);
+        }
+
+        private void OpenInOffice(CloudFile file)
+        {
+            var settings  = new Services.SettingsService();
+            var serverUrl = settings.ServerUrl?.TrimEnd('/');
+            if (string.IsNullOrEmpty(serverUrl)) { OpenFile(file); return; }
+
+            var url = BuildOfficeUrl(serverUrl, file);
+            Frame.Navigate(typeof(WebViewPage), new WebViewParams { Url = url, Title = file.Name });
+        }
+
+        private static string BuildOfficeUrl(string serverUrl, CloudFile file)
+        {
+            var parentDir = System.IO.Path.GetDirectoryName(file.Path.TrimEnd('/'))
+                                         ?.Replace('\\', '/') ?? "/";
+
+            // Use numeric fileId if available (oc:fileid from PROPFIND)
+            if (!string.IsNullOrEmpty(file.RemoteId))
+                return $"{serverUrl}/index.php/apps/files/files/{file.RemoteId}" +
+                       $"?dir={Uri.EscapeDataString(parentDir)}&openfile=true";
+
+            // Fallback: open parent folder, highlight the file
+            return $"{serverUrl}/index.php/apps/files" +
+                   $"?dir={Uri.EscapeDataString(parentDir)}&scrollto={Uri.EscapeDataString(file.Name)}";
         }
 
         // --- Context menu (right-tap / hold) ---
@@ -196,6 +266,24 @@ namespace NextcloudUWP.Views
             var infoItem = new MenuFlyoutItem { Text = "Info" };
             infoItem.Click += ContextInfo_Click;
             menu.Items.Add(infoItem);
+
+            var shareWithItem = new MenuFlyoutItem { Text = "Share with…" };
+            shareWithItem.Click += ContextShareWith_Click;
+            menu.Items.Add(shareWithItem);
+
+            if (!_contextFile.IsFolder)
+            {
+                var commentsItem = new MenuFlyoutItem { Text = "Comments" };
+                commentsItem.Click += ContextComments_Click;
+                menu.Items.Add(commentsItem);
+            }
+
+            if (!_contextFile.IsFolder && IsOfficeFile(_contextFile))
+            {
+                var officeItem = new MenuFlyoutItem { Text = "Open in Office" };
+                officeItem.Click += ContextOpenInOffice_Click;
+                menu.Items.Add(officeItem);
+            }
 
             menu.Items.Add(new MenuFlyoutSeparator());
 
@@ -571,6 +659,37 @@ namespace NextcloudUWP.Views
                 Content = new TextBlock { Text = info, FontFamily = new Windows.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
                 PrimaryButtonText = "OK"
             }.ShowAsync();
+        }
+
+        private void ContextShareWith_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contextFile == null) return;
+            Frame.Navigate(typeof(ShareFilePage), _contextFile);
+        }
+
+        private void ContextComments_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contextFile == null) return;
+            Frame.Navigate(typeof(CommentsPage), _contextFile);
+        }
+
+        private void ContextOpenInOffice_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contextFile == null) return;
+            var settings  = new Services.SettingsService();
+            var serverUrl = settings.ServerUrl?.TrimEnd('/');
+            if (string.IsNullOrEmpty(serverUrl)) return;
+
+            var url = BuildOfficeUrl(serverUrl, _contextFile);
+            Frame.Navigate(typeof(WebViewPage), new WebViewParams { Url = url, Title = _contextFile.Name });
+        }
+
+        private static bool IsOfficeFile(CloudFile file)
+        {
+            var ext = System.IO.Path.GetExtension(file.Name).ToLowerInvariant();
+            return ext == ".docx" || ext == ".doc"  || ext == ".xlsx" || ext == ".xls"
+                || ext == ".pptx" || ext == ".ppt"  || ext == ".odt"  || ext == ".ods"
+                || ext == ".odp"  || ext == ".odg"  || ext == ".odf"  || ext == ".rtf";
         }
 
         private async System.Threading.Tasks.Task ShowErrorAsync(string message)

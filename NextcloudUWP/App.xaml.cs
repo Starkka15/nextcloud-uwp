@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.Background;
+using Windows.ApplicationModel.DataTransfer.ShareTarget;
 using Windows.Data.Xml.Dom;
 using Windows.Storage.AccessCache;
 using Windows.UI.Notifications;
@@ -17,29 +18,51 @@ namespace NextcloudUWP
     {
         public static Frame RootFrame { get; private set; }
 
+        // Singleton MediaPlayer — survives page navigation, keeps audio in background
+        private static Windows.Media.Playback.MediaPlayer _appMediaPlayer;
+        public static Windows.Media.Playback.MediaPlayer AppMediaPlayer
+        {
+            get
+            {
+                if (_appMediaPlayer == null)
+                {
+                    _appMediaPlayer = new Windows.Media.Playback.MediaPlayer();
+                    _appMediaPlayer.AudioCategory =
+                        Windows.Media.Playback.MediaPlayerAudioCategory.Media;
+                }
+                return _appMediaPlayer;
+            }
+        }
+
+        // True once the user has passed the biometric/PIN lock screen this session.
+        public static bool IsUnlocked { get; set; } = true;
+
         public App()
         {
             this.InitializeComponent();
             this.Suspending += OnSuspending;
+            this.Resuming   += OnResuming;
         }
+
+        private void OnResuming(object sender, object e)
+        {
+            // Force re-authentication on next foreground visit when app lock is on.
+            var settings = new Services.SettingsService();
+            if (settings.AppLockEnabled)
+                IsUnlocked = false;
+        }
+
+        // ── Launch ──────────────────────────────────────────────────────
 
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
-            RootFrame = Window.Current.Content as Frame;
-
-            if (RootFrame == null)
-            {
-                RootFrame = new Frame();
-                RootFrame.NavigationFailed += OnNavigationFailed;
-                Window.Current.Content = RootFrame;
-            }
+            EnsureRootFrame();
 
             if (RootFrame.Content == null)
             {
                 var settings = new Services.SettingsService();
                 settings.MigrateLegacyCredentials();
 
-                // Request background task access and re-register enabled tasks.
                 if (settings.HasCredentials)
                 {
                     _ = RegisterBackgroundTasksAsync(settings);
@@ -52,6 +75,63 @@ namespace NextcloudUWP
             }
 
             Window.Current.Activate();
+        }
+
+        // ── Protocol / share-target activation ──────────────────────────
+
+        protected override void OnActivated(IActivatedEventArgs args)
+        {
+            base.OnActivated(args);
+            EnsureRootFrame();
+
+            switch (args.Kind)
+            {
+                case ActivationKind.Protocol:
+                    HandleNcProtocol(((ProtocolActivatedEventArgs)args).Uri);
+                    break;
+
+                case ActivationKind.ShareTarget:
+                    RootFrame.Navigate(typeof(Views.ShareTargetPage),
+                        ((ShareTargetActivatedEventArgs)args).ShareOperation);
+                    break;
+            }
+
+            Window.Current.Activate();
+        }
+
+        private static void HandleNcProtocol(Uri uri)
+        {
+            // nc://login?server={url}&user={user}&password={appPassword}
+            // nc://login/v2/grant?server={url}&user={user}&password={appPassword}
+            if (!uri.Host.Equals("login", StringComparison.OrdinalIgnoreCase)) return;
+
+            try
+            {
+                var q        = new Windows.Foundation.WwwFormUrlDecoder(uri.Query.TrimStart('?'));
+                string Get(string key) { try { return q.GetFirstValueByName(key); } catch { return null; } }
+
+                var server   = Get("server");
+                var user     = Get("user");
+                var password = Get("password");
+
+                if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(user) || string.IsNullOrEmpty(password))
+                    return;
+
+                var settings = new Services.SettingsService();
+                settings.AddAccount(server, user, password);
+                IsUnlocked = true;
+                RootFrame.Navigate(typeof(Views.MainPage));
+            }
+            catch { }
+        }
+
+        private static void EnsureRootFrame()
+        {
+            if (RootFrame != null) return;
+            RootFrame = new Frame();
+            RootFrame.NavigationFailed += (s, ev) =>
+                throw new Exception("Failed to load Page " + ev.SourcePageType.FullName);
+            Window.Current.Content = RootFrame;
         }
 
         // ── Background task access ───────────────────────────────────────
@@ -173,11 +253,6 @@ namespace NextcloudUWP
         {
             if (string.IsNullOrEmpty(s)) return string.Empty;
             return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-        }
-
-        void OnNavigationFailed(object sender, NavigationFailedEventArgs e)
-        {
-            throw new Exception("Failed to load Page " + e.SourcePageType.FullName);
         }
 
         private void OnSuspending(object sender, SuspendingEventArgs e)

@@ -105,11 +105,17 @@
     <Compile Include="Services\SyncService.cs" />
     <Compile Include="Services\BackgroundTaskManager.cs" />
     <Compile Include="Services\TileService.cs" />
+    <Compile Include="Services\ThumbnailCacheService.cs" />
+    <Compile Include="Services\CacheService.cs" />
+    <Compile Include="Services\OfflineQueueService.cs" />
     <Compile Include="Models\CloudFile.cs" />
     <Compile Include="Models\UserAccount.cs" />
     <Compile Include="Models\TrashbinFile.cs" />
     <Compile Include="Models\NextcloudNotification.cs" />
     <Compile Include="Models\NextcloudActivity.cs" />
+    <Compile Include="Models\ShareInfo.cs" />
+    <Compile Include="Models\FileComment.cs" />
+    <Compile Include="Models\OperationEntity.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\LoginViewModel.cs" />
     <Compile Include="Views\SearchPage.xaml.cs">
@@ -133,6 +139,28 @@
     <Compile Include="Views\ActivitiesPage.xaml.cs">
       <DependentUpon>ActivitiesPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Views\WebViewPage.xaml.cs">
+      <DependentUpon>WebViewPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ShareFilePage.xaml.cs">
+      <DependentUpon>ShareFilePage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\CommentsPage.xaml.cs">
+      <DependentUpon>CommentsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\LoginFlowPage.xaml.cs">
+      <DependentUpon>LoginFlowPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\LockPage.xaml.cs">
+      <DependentUpon>LockPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\ShareTargetPage.xaml.cs">
+      <DependentUpon>ShareTargetPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\QrScanPage.xaml.cs">
+      <DependentUpon>QrScanPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Services\CertPinningService.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
@@ -197,6 +225,34 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Views\WebViewPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ShareFilePage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\CommentsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\LoginFlowPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\LockPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\ShareTargetPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\QrScanPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
@@ -207,6 +263,9 @@
     </PackageReference>
     <PackageReference Include="SQLite.Net-PCL">
       <Version>3.1.1</Version>
+    </PackageReference>
+    <PackageReference Include="ZXing.Net">
+      <Version>0.16.9</Version>
     </PackageReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '15.0' ">

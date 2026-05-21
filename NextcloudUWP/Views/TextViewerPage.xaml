@@ -7,6 +7,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -14,6 +15,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Button Grid.Column="0" Click="BackButton_Click"
                     Foreground="White" Background="Transparent">
@@ -23,17 +25,34 @@
                        Foreground="White" VerticalAlignment="Center"
                        FontSize="16" Margin="8,0,0,0"
                        TextTrimming="CharacterEllipsis" />
+            <Button x:Name="EditButton" Grid.Column="2"
+                    Click="EditButton_Click"
+                    Foreground="White" Background="Transparent"
+                    Visibility="Collapsed">
+                <SymbolIcon Symbol="Edit" />
+            </Button>
         </Grid>
 
         <!-- Content area -->
         <Grid Grid.Row="1">
-            <ScrollViewer Padding="16">
+            <!-- View mode -->
+            <ScrollViewer x:Name="ViewScroller" Padding="16">
                 <TextBlock x:Name="ContentText"
                            FontFamily="Consolas, Courier New"
                            FontSize="13"
                            TextWrapping="Wrap"
                            IsTextSelectionEnabled="True" />
             </ScrollViewer>
+
+            <!-- Edit mode -->
+            <TextBox x:Name="EditBox"
+                     FontFamily="Consolas, Courier New"
+                     FontSize="13"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     Padding="16"
+                     Visibility="Collapsed" />
 
             <ProgressRing x:Name="LoadingRing"
                           IsActive="True" Width="60" Height="60"
@@ -44,5 +63,20 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        Visibility="Collapsed" />
         </Grid>
+
+        <!-- Edit toolbar (shown only in edit mode) -->
+        <StackPanel x:Name="EditToolbar" Grid.Row="2"
+                    Orientation="Horizontal"
+                    Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                    Padding="12,6" Visibility="Collapsed">
+            <Button x:Name="SaveButton" Content="Save"
+                    Background="#0082c9" Foreground="White"
+                    Click="SaveButton_Click" Margin="0,0,8,0" />
+            <Button Content="Cancel"
+                    Background="Transparent"
+                    Click="CancelEditButton_Click" />
+            <ProgressRing x:Name="SaveRing" IsActive="False"
+                          Width="24" Height="24" Margin="12,0,0,0" />
+        </StackPanel>
     </Grid>
 </Page>

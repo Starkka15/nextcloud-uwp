@@ -29,6 +29,8 @@ $manifest = Get-Content "$ilcDir\AppxManifest.xml" -Raw
 $manifest = $manifest -replace '\s*<PackageDependency Name="Microsoft\.VCLibs\.140\.00\.Debug"[^/]*/>', ''
 $manifest = $manifest -replace 'MinVersion="10\.0\.16299\.0"', 'MinVersion="10.0.15063.0"'
 $manifest = $manifest -replace 'MaxVersionTested="10\.0\.16299\.0"', 'MaxVersionTested="10.0.15063.0"'
+# Strip audio background task — requires a dedicated EntryPoint class, breaks in-process activation on W10M
+$manifest = $manifest -replace '\s*<Task Type="audio"\s*/>', ''
 Set-Content "$layout\AppxManifest.xml" $manifest -Encoding UTF8
 
 # App binaries
@@ -61,7 +63,11 @@ Write-Host "Packing..."
 if ($LASTEXITCODE -ne 0) { Write-Error "MakeAppx failed"; exit 1 }
 
 Write-Host "Signing..."
-& $signtool sign /fd SHA256 /f $pfxPath /p DevOnly $appxOut
+$pfxPassword = $env:NEXTCLOUD_PFX_PASSWORD
+if ([string]::IsNullOrEmpty($pfxPassword)) {
+    $pfxPassword = Read-Host "Enter PFX password"
+}
+& $signtool sign /fd SHA256 /f $pfxPath /p $pfxPassword $appxOut
 if ($LASTEXITCODE -ne 0) { Write-Error "SignTool failed"; exit 1 }
 
 Write-Host "Done. APPX at: $appxOut"

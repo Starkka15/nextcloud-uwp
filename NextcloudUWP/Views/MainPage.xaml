@@ -65,12 +65,16 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding IconGlyph}"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="28" Foreground="#0082c9"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
+                            <!-- Icon column: glyph behind, thumbnail on top when loaded -->
+                            <Grid Grid.Column="0" Width="40" Height="40">
+                                <TextBlock Text="{Binding IconGlyph}"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="28" Foreground="#0082c9"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                <Image Source="{Binding ThumbnailBitmap}"
+                                       Stretch="UniformToFill" />
+                            </Grid>
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}"
                                            FontSize="14" FontWeight="SemiBold" />
@@ -96,6 +100,15 @@
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center"
                           IsActive="False" />
+            <!-- Offline banner — declared last so it renders on top of the list -->
+            <Border x:Name="OfflineBanner"
+                    Background="#cc0000" Padding="8,4"
+                    VerticalAlignment="Top"
+                    Visibility="Collapsed">
+                <TextBlock Text="You are offline — showing cached files"
+                           Foreground="White" FontSize="12"
+                           HorizontalAlignment="Center" />
+            </Border>
         </Grid>
 
         <CommandBar Grid.Row="2" x:Name="BottomBar">

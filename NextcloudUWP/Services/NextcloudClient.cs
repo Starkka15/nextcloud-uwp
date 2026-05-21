@@ -218,14 +218,230 @@ namespace NextcloudUWP.Services
             return result;
         }
 
-        public HttpClient GetRawHttpClient()
+        // ── Shares ────────────────────────────────────────────────────────────
+
+        public async Task<List<Models.ShareInfo>> GetSharesForFileAsync(string path)
         {
-            return _httpClient;
+            var result = new List<Models.ShareInfo>();
+            try
+            {
+                var url = $"{_serverUrl}/ocs/v1.php/apps/files_sharing/api/v1/shares?format=json&path={Uri.EscapeDataString(path)}";
+                var resp = await _httpClient.GetAsync(url);
+                if (!resp.IsSuccessStatusCode) return result;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                var data = json["ocs"]?["data"] as JArray;
+                if (data == null) return result;
+                foreach (var s in data)
+                    result.Add(ParseShare(s));
+            }
+            catch { }
+            return result;
         }
 
-        public string GetServerUrl()
+        public async Task<Models.ShareInfo> CreateUserShareAsync(string path, string userId, int permissions = 17)
         {
-            return _serverUrl;
+            return await CreateShareAsync(path, shareType: 0, shareWith: userId, permissions: permissions);
         }
+
+        public async Task<Models.ShareInfo> CreateGroupShareAsync(string path, string groupId, int permissions = 17)
+        {
+            return await CreateShareAsync(path, shareType: 1, shareWith: groupId, permissions: permissions);
+        }
+
+        private async Task<Models.ShareInfo> CreateShareAsync(string path, int shareType,
+            string shareWith = null, int permissions = 17)
+        {
+            try
+            {
+                var fields = new Dictionary<string, string>
+                {
+                    { "path",        path },
+                    { "shareType",   shareType.ToString() },
+                    { "permissions", permissions.ToString() }
+                };
+                if (!string.IsNullOrEmpty(shareWith))
+                    fields["shareWith"] = shareWith;
+
+                var resp = await _httpClient.PostAsync(
+                    $"{_serverUrl}/ocs/v1.php/apps/files_sharing/api/v1/shares?format=json",
+                    new FormUrlEncodedContent(fields));
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                var data = json["ocs"]?["data"];
+                return data != null ? ParseShare(data) : null;
+            }
+            catch { return null; }
+        }
+
+        public async Task<bool> UpdateSharePermissionsAsync(int shareId, int permissions)
+        {
+            try
+            {
+                var resp = await _httpClient.SendAsync(new HttpRequestMessage(
+                    new HttpMethod("PUT"),
+                    $"{_serverUrl}/ocs/v1.php/apps/files_sharing/api/v1/shares/{shareId}?format=json")
+                {
+                    Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                        { { "permissions", permissions.ToString() } })
+                });
+                return resp.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        private static Models.ShareInfo ParseShare(JToken s) => new Models.ShareInfo
+        {
+            Id                   = s.Value<int>("id"),
+            Path                 = s.Value<string>("path"),
+            ShareType            = s.Value<int>("share_type"),
+            ShareWith            = s.Value<string>("share_with"),
+            ShareWithDisplayName = s.Value<string>("share_with_displayname"),
+            Token                = s.Value<string>("token"),
+            Url                  = s.Value<string>("url"),
+            Permissions          = s.Value<int>("permissions"),
+            Expiration           = s.Value<string>("expiration")
+        };
+
+        // ── File comments ─────────────────────────────────────────────────────
+
+        public async Task<List<Models.FileComment>> GetCommentsAsync(string fileId)
+        {
+            var result = new List<Models.FileComment>();
+            try
+            {
+                var resp = await _httpClient.GetAsync(
+                    $"{_serverUrl}/remote.php/dav/comments/files/{fileId}/?format=json");
+                if (!resp.IsSuccessStatusCode) return result;
+                // Comments API returns WebDAV XML, parse it
+                var content = await resp.Content.ReadAsStringAsync();
+                var doc = System.Xml.Linq.XDocument.Parse(content);
+                var ncNs = System.Xml.Linq.XNamespace.Get("http://owncloud.org/ns");
+                var davNs = System.Xml.Linq.XNamespace.Get("DAV:");
+                foreach (var elem in doc.Root.Elements(davNs + "response"))
+                {
+                    var prop = elem.Element(davNs + "propstat")?.Element(davNs + "prop");
+                    if (prop == null) continue;
+                    DateTime dt = DateTime.MinValue;
+                    DateTime.TryParse(prop.Element(ncNs + "creationDateTime")?.Value, out dt);
+                    result.Add(new Models.FileComment
+                    {
+                        Id               = prop.Element(ncNs + "id")?.Value != null
+                                            ? int.Parse(prop.Element(ncNs + "id").Value) : 0,
+                        Message          = prop.Element(ncNs + "message")?.Value ?? "",
+                        ActorDisplayName = prop.Element(ncNs + "actorDisplayName")?.Value ?? "",
+                        ActorId          = prop.Element(ncNs + "actorId")?.Value ?? "",
+                        CreationDateTime = dt
+                    });
+                }
+            }
+            catch { }
+            return result;
+        }
+
+        public async Task<bool> PostCommentAsync(string fileId, string message)
+        {
+            try
+            {
+                var body = $"{{\"actorType\":\"users\",\"verb\":\"comment\",\"message\":{JsonConvert.SerializeObject(message)}}}";
+                var resp = await _httpClient.PostAsync(
+                    $"{_serverUrl}/remote.php/dav/comments/files/{fileId}/",
+                    new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+                return resp.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        // ── User / group search ───────────────────────────────────────────────
+
+        public async Task<List<(string id, string displayName)>> SearchUsersAsync(string query)
+        {
+            var result = new List<(string, string)>();
+            try
+            {
+                var resp = await _httpClient.GetAsync(
+                    $"{_serverUrl}/ocs/v1.php/cloud/users?search={Uri.EscapeDataString(query)}&format=json");
+                if (!resp.IsSuccessStatusCode) return result;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                var users = json["ocs"]?["data"]?["users"] as JArray;
+                if (users != null)
+                    foreach (var u in users)
+                        result.Add((u.ToString(), u.ToString()));
+            }
+            catch { }
+            return result;
+        }
+
+        public async Task<List<string>> SearchGroupsAsync(string query)
+        {
+            var result = new List<string>();
+            try
+            {
+                var resp = await _httpClient.GetAsync(
+                    $"{_serverUrl}/ocs/v1.php/cloud/groups?search={Uri.EscapeDataString(query)}&format=json");
+                if (!resp.IsSuccessStatusCode) return result;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                var groups = json["ocs"]?["data"]?["groups"] as JArray;
+                if (groups != null)
+                    foreach (var g in groups)
+                        result.Add(g.ToString());
+            }
+            catch { }
+            return result;
+        }
+
+        // ── Login Flow v2 ─────────────────────────────────────────────────────
+
+        public async Task<LoginFlowInitResult> InitLoginFlowAsync(string serverUrl)
+        {
+            try
+            {
+                var url  = serverUrl.TrimEnd('/') + "/index.php/login/v2";
+                var resp = await new HttpClient().PostAsync(url, new StringContent(""));
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                return new LoginFlowInitResult
+                {
+                    LoginUrl     = json["login"]?.ToString(),
+                    PollEndpoint = json["poll"]?["endpoint"]?.ToString(),
+                    PollToken    = json["poll"]?["token"]?.ToString()
+                };
+            }
+            catch { return null; }
+        }
+
+        public async Task<LoginFlowCredentials> PollLoginFlowAsync(string endpoint, string token)
+        {
+            try
+            {
+                var content = new FormUrlEncodedContent(new Dictionary<string, string>
+                    { { "token", token } });
+                var resp = await new HttpClient().PostAsync(endpoint, content);
+                if (!resp.IsSuccessStatusCode) return null;
+                var json = JObject.Parse(await resp.Content.ReadAsStringAsync());
+                var server   = json["server"]?.ToString();
+                var login    = json["loginName"]?.ToString();
+                var password = json["appPassword"]?.ToString();
+                if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(login)) return null;
+                return new LoginFlowCredentials { Server = server, LoginName = login, AppPassword = password };
+            }
+            catch { return null; }
+        }
+
+        public HttpClient GetRawHttpClient() => _httpClient;
+        public string GetServerUrl()         => _serverUrl;
+    }
+
+    public class LoginFlowInitResult
+    {
+        public string LoginUrl     { get; set; }
+        public string PollEndpoint { get; set; }
+        public string PollToken    { get; set; }
+    }
+
+    public class LoginFlowCredentials
+    {
+        public string Server      { get; set; }
+        public string LoginName   { get; set; }
+        public string AppPassword { get; set; }
     }
 }

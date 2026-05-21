@@ -1,0 +1,63 @@
+<Page x:Class="NextcloudUWP.Views.LoginFlowPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Background="#0082c9" Padding="12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Click="CancelButton_Click"
+                    Foreground="White" Background="Transparent">
+                <SymbolIcon Symbol="Cancel" />
+            </Button>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                        Margin="8,0,0,0">
+                <TextBlock x:Name="HeaderTitle" Text="Browser Login"
+                           Foreground="White" FontSize="16" VerticalAlignment="Center" />
+                <ProgressRing x:Name="HeaderRing" IsActive="False"
+                              Width="20" Height="20" Foreground="White"
+                              Margin="10,0,0,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="HeaderStatus" Text=""
+                           Foreground="#ccffffff" FontSize="12"
+                           VerticalAlignment="Center" Margin="6,0,0,0" />
+            </StackPanel>
+        </Grid>
+
+        <!-- WebView + overlay states -->
+        <Grid Grid.Row="1">
+            <WebView x:Name="LoginWebView"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Stretch"
+                     NavigationCompleted="LoginWebView_NavigationCompleted" />
+
+            <!-- Polling overlay -->
+            <StackPanel x:Name="WaitOverlay"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="Collapsed">
+                <ProgressRing IsActive="True" Width="60" Height="60"
+                              HorizontalAlignment="Center" />
+                <TextBlock Text="Waiting for login…" Margin="0,16,0,0"
+                           HorizontalAlignment="Center" FontSize="14" />
+            </StackPanel>
+
+            <!-- Error overlay -->
+            <StackPanel x:Name="ErrorOverlay"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="Collapsed">
+                <TextBlock x:Name="ErrorText" TextWrapping="Wrap"
+                           HorizontalAlignment="Center" Foreground="Red" FontSize="14" />
+                <Button Content="Retry" Click="RetryButton_Click"
+                        Margin="0,16,0,0" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

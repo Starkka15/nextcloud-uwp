@@ -74,12 +74,35 @@ namespace NextcloudUWP.Views
             }
         }
 
+        private void FlowLoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            var serverUrl = ServerUrlBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(serverUrl))
+            {
+                ShowError("Enter the server address first.");
+                return;
+            }
+            if (!serverUrl.StartsWith("https://") && !serverUrl.StartsWith("http://"))
+                serverUrl = "https://" + serverUrl;
+
+            Frame.Navigate(typeof(LoginFlowPage), new LoginFlowParams
+            {
+                ServerUrl    = serverUrl,
+                IsAddAccount = _isAddAccountMode
+            });
+        }
+
+        private void QrLoginButton_Click(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(QrScanPage));
+        }
+
         private void ShowError(string message)
         {
-            ErrorText.Text = message;
-            ErrorText.Visibility = Visibility.Visible;
+            ErrorText.Text         = message;
+            ErrorText.Visibility   = Visibility.Visible;
             LoginProgress.IsActive = false;
-            LoginButton.IsEnabled = true;
+            LoginButton.IsEnabled  = true;
         }
     }
 }

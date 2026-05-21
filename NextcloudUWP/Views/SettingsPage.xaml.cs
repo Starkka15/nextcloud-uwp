@@ -1,6 +1,7 @@
 using System;
 using Windows.ApplicationModel;
 using Windows.Storage;
+using NextcloudUWP;
 using Windows.Storage.AccessCache;
 using Windows.Storage.Pickers;
 using Windows.UI.Xaml;
@@ -29,7 +30,14 @@ namespace NextcloudUWP.Views
             _loadingSettings = true;
             NotificationsToggle.IsOn = _settings.NotificationsEnabled;
             AutoSyncToggle.IsOn      = _settings.AutoSyncEnabled;
+            AppLockToggle.IsOn       = _settings.AppLockEnabled;
             _loadingSettings = false;
+
+            // Show current pinned thumbprint if any
+            var pinned = _settings.PinnedCertThumbprint;
+            CertThumbprintText.Text = string.IsNullOrEmpty(pinned)
+                ? "No cert pinned"
+                : "Pinned: " + pinned;
 
             // Show saved folder path if any
             var token = _settings.AutoSyncFolderToken;
@@ -232,6 +240,71 @@ namespace NextcloudUWP.Views
             BgTaskStatusText.Text = AutoSyncToggle.IsOn
                 ? "Auto-upload enabled (≈30 min interval)"
                 : "Auto-upload disabled";
+        }
+
+        // ── Security ─────────────────────────────────────────────────────
+
+        private void AppLockToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loadingSettings) return;
+            _settings.AppLockEnabled = AppLockToggle.IsOn;
+            if (!AppLockToggle.IsOn)
+                App.IsUnlocked = true; // clear any pending lock state
+        }
+
+        private CertPinningService.CertInfo _checkedCert;
+
+        private async void CheckCertButton_Click(object sender, RoutedEventArgs e)
+        {
+            var serverUrl = _settings.ServerUrl;
+            if (string.IsNullOrEmpty(serverUrl)) return;
+
+            CertRing.IsActive     = true;
+            CertStatusText.Text   = "Checking…";
+            PinCertButton.IsEnabled = false;
+            _checkedCert = null;
+
+            try
+            {
+                var info = await CertPinningService.GetCertInfoAsync(serverUrl);
+                if (info == null)
+                {
+                    CertStatusText.Text = "Could not retrieve certificate.";
+                    return;
+                }
+                _checkedCert = info;
+                CertStatusText.Text =
+                    $"Subject: {info.Subject}\n" +
+                    $"Issuer:  {info.Issuer}\n" +
+                    $"Expiry:  {info.Expiry:yyyy-MM-dd}\n" +
+                    $"Valid:   {(info.IsValid ? "Yes" : "No — self-signed or untrusted")}\n" +
+                    $"SHA-256: {info.Thumbprint}";
+                PinCertButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                CertStatusText.Text = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                CertRing.IsActive = false;
+            }
+        }
+
+        private void PinCertButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_checkedCert == null) return;
+            _settings.PinnedCertThumbprint = _checkedCert.Thumbprint;
+            CertThumbprintText.Text = "Pinned: " + _checkedCert.Thumbprint;
+            CertStatusText.Text = "Certificate pinned. App will warn if it changes.";
+            PinCertButton.IsEnabled = false;
+        }
+
+        private void ClearPinButton_Click(object sender, RoutedEventArgs e)
+        {
+            _settings.PinnedCertThumbprint = null;
+            CertThumbprintText.Text = "No cert pinned";
+            CertStatusText.Text = "Pin cleared.";
         }
 
         // ── Sign out ─────────────────────────────────────────────────────

@@ -2,7 +2,8 @@
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
          xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
          xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-         IgnorableNamespaces="uap mp">
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         IgnorableNamespaces="uap uap3 mp">
   <Identity Name="com.nextcloud.uwp"
             Publisher="CN=NextcloudUWP"
             Version="1.0.0.0" />
@@ -47,6 +48,18 @@
             <Task Type="timer" />
           </BackgroundTasks>
         </Extension>
+        <!-- nc:// deep link / QR-code login activation -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="nc" />
+        </uap:Extension>
+        <!-- Receive files from the Share charm -->
+        <uap:Extension Category="windows.shareTarget">
+          <uap:ShareTarget>
+            <uap:SupportedFileTypes>
+              <uap:SupportsAnyFileType />
+            </uap:SupportedFileTypes>
+          </uap:ShareTarget>
+        </uap:Extension>
       </Extensions>
     </Application>
   </Applications>
@@ -61,6 +74,7 @@
     </Extension>
   </Extensions>
   <Capabilities>
+    <uap3:Capability Name="backgroundMediaPlayback" />
     <Capability Name="internetClient" />
     <Capability Name="internetClientServer" />
     <Capability Name="privateNetworkClientServer" />
