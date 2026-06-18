@@ -56,7 +56,7 @@ namespace NextcloudUWP.Services
                     response.Dispose();
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(CertPinningService), ex); }
 
             return captured;
         }
@@ -88,7 +88,7 @@ namespace NextcloudUWP.Services
                 CryptographicBuffer.CopyToByteArray(hash, out bytes);
                 return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
             }
-            catch { return string.Empty; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(CertPinningService), ex); return string.Empty; }
         }
     }
 }

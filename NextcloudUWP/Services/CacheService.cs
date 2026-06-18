@@ -37,7 +37,7 @@ namespace NextcloudUWP.Services
                 var file = await folder.CreateFileAsync(name, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(file, JsonConvert.SerializeObject(files));
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(CacheService), ex); }
         }
 
         public async Task<List<CloudFile>> LoadAsync(string path)
@@ -52,7 +52,7 @@ namespace NextcloudUWP.Services
                 var json = await FileIO.ReadTextAsync(file);
                 return JsonConvert.DeserializeObject<List<CloudFile>>(json);
             }
-            catch { return null; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(CacheService), ex); return null; }
         }
 
         public void Invalidate(string path)
@@ -62,7 +62,7 @@ namespace NextcloudUWP.Services
                 var p = Path.Combine(GetDir(), PathToKey(path) + ".json");
                 if (File.Exists(p)) File.Delete(p);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(CacheService), ex); }
         }
     }
 }

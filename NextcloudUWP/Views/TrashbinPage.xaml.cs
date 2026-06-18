@@ -9,7 +9,7 @@ namespace NextcloudUWP.Views
 {
     public sealed partial class TrashbinPage : Page
     {
-        private readonly MainViewModel _viewModel = new MainViewModel();
+        private readonly MainViewModel _viewModel = MainViewModel.Instance;
 
         public TrashbinPage()
         {

@@ -41,7 +41,7 @@ namespace NextcloudUWP.Views
                             _sharedFiles.Add(sf);
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(ShareTargetPage), ex); }
 
             if (_sharedFiles.Count == 0)
             {

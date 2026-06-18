@@ -48,6 +48,23 @@ namespace NextcloudUWP.Views
             if (!serverUrl.StartsWith("https://") && !serverUrl.StartsWith("http://"))
                 serverUrl = "https://" + serverUrl;
 
+            if (serverUrl.StartsWith("http://"))
+            {
+                var warn = new ContentDialog
+                {
+                    Title = "Insecure Connection",
+                    Content = "HTTP connections transmit your credentials unencrypted. Continue anyway?",
+                    PrimaryButtonText = "Continue",
+                    SecondaryButtonText = "Cancel"
+                };
+                if (await warn.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    LoginProgress.IsActive = false;
+                    LoginButton.IsEnabled = true;
+                    return;
+                }
+            }
+
             try
             {
                 var success = await _viewModel.LoginAsync(serverUrl, username, password);
@@ -74,7 +91,7 @@ namespace NextcloudUWP.Views
             }
         }
 
-        private void FlowLoginButton_Click(object sender, RoutedEventArgs e)
+        private async void FlowLoginButton_Click(object sender, RoutedEventArgs e)
         {
             var serverUrl = ServerUrlBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(serverUrl))
@@ -84,6 +101,18 @@ namespace NextcloudUWP.Views
             }
             if (!serverUrl.StartsWith("https://") && !serverUrl.StartsWith("http://"))
                 serverUrl = "https://" + serverUrl;
+
+            if (serverUrl.StartsWith("http://"))
+            {
+                var warn = new ContentDialog
+                {
+                    Title = "Insecure Connection",
+                    Content = "HTTP connections transmit your credentials unencrypted. Continue anyway?",
+                    PrimaryButtonText = "Continue",
+                    SecondaryButtonText = "Cancel"
+                };
+                if (await warn.ShowAsync() != ContentDialogResult.Primary) return;
+            }
 
             Frame.Navigate(typeof(LoginFlowPage), new LoginFlowParams
             {

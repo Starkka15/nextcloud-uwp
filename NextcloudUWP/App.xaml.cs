@@ -10,7 +10,7 @@ using Windows.Storage.AccessCache;
 using Windows.UI.Notifications;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Navigation;
+using NextcloudUWP.Services;
 
 namespace NextcloudUWP
 {
@@ -65,7 +65,10 @@ namespace NextcloudUWP
 
                 if (settings.HasCredentials)
                 {
-                    _ = RegisterBackgroundTasksAsync(settings);
+                    _ = RegisterBackgroundTasksAsync(settings).ContinueWith(t =>
+                    {
+                        if (t.Exception != null) DebugLogger.LogException("App", t.Exception);
+                    });
                     RootFrame.Navigate(typeof(Views.MainPage), e.Arguments);
                 }
                 else
@@ -101,18 +104,31 @@ namespace NextcloudUWP
 
         private static void HandleNcProtocol(Uri uri)
         {
-            // nc://login?server={url}&user={user}&password={appPassword}
-            // nc://login/v2/grant?server={url}&user={user}&password={appPassword}
+            // Nextcloud login deep link (same format the QR scanner handles):
+            //   nc://login/server:<url>&user:<user>&password:<appPassword>
+            // Params are ':'-separated, '&'-delimited, in the PATH (no '?'), and the
+            // server value contains "https://" — so split on '&' then the FIRST ':'.
             if (!uri.Host.Equals("login", StringComparison.OrdinalIgnoreCase)) return;
 
             try
             {
-                var q        = new Windows.Foundation.WwwFormUrlDecoder(uri.Query.TrimStart('?'));
-                string Get(string key) { try { return q.GetFirstValueByName(key); } catch { return null; } }
+                // Work off the original string — Uri.AbsolutePath mangles the embedded
+                // "https://" in the server value. Strip the "nc://login" prefix instead.
+                var raw = uri.OriginalString;
+                var idx = raw.IndexOf("login", StringComparison.OrdinalIgnoreCase);
+                var payload = raw.Substring(idx + "login".Length).TrimStart('/', '?');
 
-                var server   = Get("server");
-                var user     = Get("user");
-                var password = Get("password");
+                string server = null, user = null, password = null;
+                foreach (var part in payload.Split('&'))
+                {
+                    int sep = part.IndexOf(':');
+                    if (sep < 0) continue;
+                    var key = part.Substring(0, sep).Trim();
+                    var val = Uri.UnescapeDataString(part.Substring(sep + 1));
+                    if (key.Equals("server", StringComparison.OrdinalIgnoreCase)) server = val;
+                    else if (key.Equals("user", StringComparison.OrdinalIgnoreCase)) user = val;
+                    else if (key.Equals("password", StringComparison.OrdinalIgnoreCase)) password = val;
+                }
 
                 if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(user) || string.IsNullOrEmpty(password))
                     return;
@@ -122,7 +138,7 @@ namespace NextcloudUWP
                 IsUnlocked = true;
                 RootFrame.Navigate(typeof(Views.MainPage));
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException("App.NcProtocol", ex); }
         }
 
         private static void EnsureRootFrame()
@@ -171,7 +187,7 @@ namespace NextcloudUWP
                 else if (name == Services.BackgroundTaskManager.SyncTaskName)
                     await RunAutoSyncAsync(settings, account);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException("App.BackgroundActivated", ex); }
             finally { deferral.Complete(); }
         }
 
@@ -188,7 +204,7 @@ namespace NextcloudUWP
                 if (user != null && user.QuotaTotal > 0)
                     Services.TileService.UpdateTile(user.QuotaUsed, user.QuotaTotal);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException("App.NotificationPolling", ex); }
 
             if (!settings.NotificationsEnabled) return;
 
@@ -213,7 +229,7 @@ namespace NextcloudUWP
                 else
                     Services.TileService.ClearBadge();
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException("App.NotificationPolling", ex); }
         }
 
         private static async Task RunAutoSyncAsync(
@@ -230,7 +246,7 @@ namespace NextcloudUWP
                 var sync = new Services.SyncService();
                 await sync.UploadFolderAsync(folder, settings.AutoUploadRemotePath);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException("App.AutoSync", ex); }
         }
 
         private static void ShowToast(string title, string body)
@@ -249,11 +265,7 @@ namespace NextcloudUWP
                                     .Show(new ToastNotification(doc));
         }
 
-        private static string XmlEscape(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return string.Empty;
-            return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-        }
+        private static string XmlEscape(string s) => FormatHelper.XmlEscape(s);
 
         private void OnSuspending(object sender, SuspendingEventArgs e)
         {

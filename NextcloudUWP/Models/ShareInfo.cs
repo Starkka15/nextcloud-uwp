@@ -34,5 +34,7 @@ namespace NextcloudUWP.Models
                 return "Read only";
             }
         }
+
+        public bool CanEdit => (Permissions & 2) != 0;
     }
 }

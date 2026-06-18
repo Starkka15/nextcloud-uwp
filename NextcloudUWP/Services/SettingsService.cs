@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Windows.Storage;
+using Windows.Security.Credentials;
 using Newtonsoft.Json;
 using NextcloudUWP.Models;
 
@@ -8,15 +10,18 @@ namespace NextcloudUWP.Services
     public class SettingsService
     {
         private const string KEY_ACCOUNTS = "Accounts";
+        private const string VAULT_RESOURCE = "NextcloudUWP";
         private const string LEGACY_KEY_SERVER = "ServerUrl";
         private const string LEGACY_KEY_USER = "Username";
         private const string LEGACY_KEY_PASS = "Password";
 
         private readonly ApplicationDataContainer _local;
+        private readonly PasswordVault _vault;
 
         public SettingsService()
         {
             _local = ApplicationData.Current.LocalSettings;
+            _vault = new PasswordVault();
         }
 
         // ── Multi-account storage ────────────────────────────────────────
@@ -34,13 +39,18 @@ namespace NextcloudUWP.Services
             var accounts = GetAccounts();
             var idx = accounts.FindIndex(a =>
                 a.ServerUrl == account.ServerUrl && a.Username == account.Username);
-            if (idx >= 0) accounts[idx] = account;
-            else accounts.Add(account);
+
+            StoreCredential(account.ServerUrl, account.Username, account.Password);
+
+            var sanitized = SanitizeForStorage(account);
+            if (idx >= 0) accounts[idx] = sanitized;
+            else accounts.Add(sanitized);
             Persist(accounts);
         }
 
         public void RemoveAccount(string serverUrl, string username)
         {
+            RemoveCredential(serverUrl, username);
             var accounts = GetAccounts();
             accounts.RemoveAll(a => a.ServerUrl == serverUrl && a.Username == username);
             if (accounts.Count > 0 && !accounts.Exists(a => a.IsActive))
@@ -48,7 +58,12 @@ namespace NextcloudUWP.Services
             Persist(accounts);
         }
 
-        public UserAccount GetActiveAccount() => GetAccounts().Find(a => a.IsActive);
+        public UserAccount GetActiveAccount()
+        {
+            var account = GetAccounts().Find(a => a.IsActive);
+            if (account != null) account.Password = RetrieveCredential(account.ServerUrl, account.Username);
+            return account;
+        }
 
         public void SetActiveAccount(string serverUrl, string username)
         {
@@ -78,6 +93,53 @@ namespace NextcloudUWP.Services
                 QuotaTotal = quotaTotal,
                 IsActive = true
             });
+        }
+
+        // ── PasswordVault helpers ─────────────────────────────────────────
+
+        private void StoreCredential(string serverUrl, string username, string password)
+        {
+            if (string.IsNullOrEmpty(password)) return;
+            RemoveCredential(serverUrl, username);
+            _vault.Add(new PasswordCredential(VAULT_RESOURCE, $"{serverUrl}:{username}", password));
+        }
+
+        private string RetrieveCredential(string serverUrl, string username)
+        {
+            try
+            {
+                var cred = _vault.Retrieve(VAULT_RESOURCE, $"{serverUrl}:{username}");
+                cred.RetrievePassword();
+                return cred.Password;
+            }
+            catch { return null; }
+        }
+
+        private void RemoveCredential(string serverUrl, string username)
+        {
+            try
+            {
+                var cred = _vault.Retrieve(VAULT_RESOURCE, $"{serverUrl}:{username}");
+                _vault.Remove(cred);
+            }
+            catch { }
+        }
+
+        private static UserAccount SanitizeForStorage(UserAccount account)
+        {
+            return new UserAccount
+            {
+                Id = account.Id,
+                ServerUrl = account.ServerUrl,
+                Username = account.Username,
+                Password = null,
+                AccessToken = null,
+                DisplayName = account.DisplayName,
+                Email = account.Email,
+                QuotaUsed = account.QuotaUsed,
+                QuotaTotal = account.QuotaTotal,
+                IsActive = account.IsActive
+            };
         }
 
         // ── Auto-upload settings ────────────────────────────────────────
@@ -135,6 +197,26 @@ namespace NextcloudUWP.Services
         {
             get => _local.Values["PinnedCertThumbprint"] as string;
             set => _local.Values["PinnedCertThumbprint"] = value;
+        }
+
+        // ── Sync settings ───────────────────────────────────────────────
+
+        public long SyncMaxFileSize
+        {
+            get => (_local.Values["SyncMaxFileSize"] as long?) ?? 0;
+            set => _local.Values["SyncMaxFileSize"] = value;
+        }
+
+        public List<string> SyncFileExtensions
+        {
+            get
+            {
+                var json = _local.Values["SyncFileExtensions"] as string;
+                if (string.IsNullOrEmpty(json)) return new List<string>();
+                try { return JsonConvert.DeserializeObject<List<string>>(json); }
+                catch { return new List<string>(); }
+            }
+            set => _local.Values["SyncFileExtensions"] = JsonConvert.SerializeObject(value);
         }
 
         // ── Convenience props (active account) ──────────────────────────

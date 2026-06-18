@@ -12,7 +12,7 @@ namespace NextcloudUWP.Services
 {
     public class NextcloudClient
     {
-        private readonly HttpClient _httpClient;
+        private HttpClient _httpClient;
         private string _serverUrl;
         private string _username;
         private string _password;
@@ -30,6 +30,9 @@ namespace NextcloudUWP.Services
             _username = username;
             _password = password;
 
+            _httpClient = new HttpClient(new CertPinningHandler(_serverUrl));
+            _httpClient.DefaultRequestHeaders.Add("OCS-APIREQUEST", "true");
+            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             var authBytes = Encoding.UTF8.GetBytes($"{username}:{password}");
             var authHeader = Convert.ToBase64String(authBytes);
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);
@@ -48,7 +51,7 @@ namespace NextcloudUWP.Services
                     return installed != null && installed.ToObject<bool>();
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return false;
         }
 
@@ -83,8 +86,9 @@ namespace NextcloudUWP.Services
                 var user = await GetUserAsync();
                 return !string.IsNullOrEmpty(user?.Id);
             }
-            catch
+            catch (Exception ex)
             {
+                DebugLogger.LogException(nameof(NextcloudClient), ex);
                 return false;
             }
         }
@@ -181,7 +185,7 @@ namespace NextcloudUWP.Services
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -214,7 +218,7 @@ namespace NextcloudUWP.Services
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -234,7 +238,7 @@ namespace NextcloudUWP.Services
                 foreach (var s in data)
                     result.Add(ParseShare(s));
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -270,7 +274,7 @@ namespace NextcloudUWP.Services
                 var data = json["ocs"]?["data"];
                 return data != null ? ParseShare(data) : null;
             }
-            catch { return null; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); return null; }
         }
 
         public async Task<bool> UpdateSharePermissionsAsync(int shareId, int permissions)
@@ -286,7 +290,7 @@ namespace NextcloudUWP.Services
                 });
                 return resp.IsSuccessStatusCode;
             }
-            catch { return false; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); return false; }
         }
 
         private static Models.ShareInfo ParseShare(JToken s) => new Models.ShareInfo
@@ -334,7 +338,7 @@ namespace NextcloudUWP.Services
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -348,7 +352,7 @@ namespace NextcloudUWP.Services
                     new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
                 return resp.IsSuccessStatusCode;
             }
-            catch { return false; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); return false; }
         }
 
         // ── User / group search ───────────────────────────────────────────────
@@ -367,7 +371,7 @@ namespace NextcloudUWP.Services
                     foreach (var u in users)
                         result.Add((u.ToString(), u.ToString()));
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -385,7 +389,7 @@ namespace NextcloudUWP.Services
                     foreach (var g in groups)
                         result.Add(g.ToString());
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); }
             return result;
         }
 
@@ -406,7 +410,7 @@ namespace NextcloudUWP.Services
                     PollToken    = json["poll"]?["token"]?.ToString()
                 };
             }
-            catch { return null; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); return null; }
         }
 
         public async Task<LoginFlowCredentials> PollLoginFlowAsync(string endpoint, string token)
@@ -424,7 +428,7 @@ namespace NextcloudUWP.Services
                 if (string.IsNullOrEmpty(server) || string.IsNullOrEmpty(login)) return null;
                 return new LoginFlowCredentials { Server = server, LoginName = login, AppPassword = password };
             }
-            catch { return null; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(NextcloudClient), ex); return null; }
         }
 
         public HttpClient GetRawHttpClient() => _httpClient;

@@ -1,4 +1,5 @@
 using System;
+using NextcloudUWP.Services;
 
 namespace NextcloudUWP.Models
 {
@@ -12,7 +13,7 @@ namespace NextcloudUWP.Models
         public bool IsFolder { get; set; }
         public DateTime DeletionTime { get; set; }
 
-        public string SizeText => IsFolder ? "" : FormatSize(Size);
+        public string SizeText => IsFolder ? "" : FormatHelper.FormatSize(Size);
 
         public string DetailText
         {
@@ -25,14 +26,6 @@ namespace NextcloudUWP.Models
                     ? date
                     : $"{date} - {OriginalLocation}";
             }
-        }
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes < 1024) return $"{bytes} B";
-            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-            return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
         }
     }
 }

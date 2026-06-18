@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using Windows.UI.Xaml.Media.Imaging;
+using NextcloudUWP.Services;
 
 namespace NextcloudUWP.Models
 {
@@ -67,20 +68,12 @@ namespace NextcloudUWP.Models
             get
             {
                 var date = ModifiedDate.ToString("MMM dd, yyyy");
-                var size = IsFolder ? $"{date}" : $"{FormatSize(Size)} - {date}";
+                var size = IsFolder ? $"{date}" : $"{FormatHelper.FormatSize(Size)} - {date}";
                 return size;
             }
         }
 
-        public string SizeText => IsFolder ? "" : FormatSize(Size);
+        public string SizeText => IsFolder ? "" : FormatHelper.FormatSize(Size);
         public string FavoriteGlyph => IsFavorite ? "\uE735" : "";
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes < 1024) return $"{bytes} B";
-            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-            return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
-        }
     }
 }

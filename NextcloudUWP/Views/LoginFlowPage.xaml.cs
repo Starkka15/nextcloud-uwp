@@ -71,7 +71,10 @@ namespace NextcloudUWP.Views
             HeaderRing.IsActive = true;
             HeaderStatus.Text   = "Waiting for authorization…";
             _cts = new CancellationTokenSource();
-            _ = PollForCredentialsAsync(_cts.Token);
+            _ = PollForCredentialsAsync(_cts.Token).ContinueWith(t =>
+            {
+                if (t.Exception != null) DebugLogger.LogException(nameof(LoginFlowPage), t.Exception);
+            });
         }
 
         private async Task PollForCredentialsAsync(CancellationToken token)
@@ -95,7 +98,7 @@ namespace NextcloudUWP.Views
                         return;
                     }
                 }
-                catch { }
+                catch (Exception ex) { DebugLogger.LogException(nameof(LoginFlowPage), ex); }
             }
 
             // Timed out
@@ -122,7 +125,7 @@ namespace NextcloudUWP.Views
             ncClient.Configure(creds.Server, creds.LoginName, creds.AppPassword);
 
             UserAccount account = null;
-            try { account = await ncClient.GetUserAsync(); } catch { }
+            try { account = await ncClient.GetUserAsync(); } catch (Exception ex) { DebugLogger.LogException(nameof(LoginFlowPage), ex); }
 
             var settings = new SettingsService();
             settings.AddAccount(

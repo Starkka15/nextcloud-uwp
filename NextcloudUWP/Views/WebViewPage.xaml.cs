@@ -13,7 +13,7 @@ namespace NextcloudUWP.Views
 {
     public sealed partial class WebViewPage : Page
     {
-        private readonly MainViewModel _viewModel = new MainViewModel();
+        private readonly MainViewModel _viewModel = MainViewModel.Instance;
 
         public WebViewPage()
         {
@@ -137,7 +137,13 @@ namespace NextcloudUWP.Views
 
             // Links  [text](url)
             body = System.Text.RegularExpressions.Regex.Replace(body, @"\[([^\]]+)\]\(([^)]+)\)",
-                "<a href=\"$2\">$1</a>");
+                m =>
+                {
+                    var url = m.Groups[2].Value;
+                    if (url.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase))
+                        return m.Groups[1].Value;
+                    return $"<a href=\"{url}\">{m.Groups[1].Value}</a>";
+                });
 
             // Unordered lists
             body = System.Text.RegularExpressions.Regex.Replace(body, @"^[\*\-]\s+(.+)$",

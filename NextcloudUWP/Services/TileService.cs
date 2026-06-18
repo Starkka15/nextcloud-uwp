@@ -7,8 +7,8 @@ namespace NextcloudUWP.Services
     {
         public static void UpdateTile(long quotaUsed, long quotaTotal)
         {
-            var usedStr  = FormatSize(quotaUsed);
-            var totalStr = FormatSize(quotaTotal);
+            var usedStr  = FormatHelper.FormatSize(quotaUsed);
+            var totalStr = FormatHelper.FormatSize(quotaTotal);
             var pct      = quotaTotal > 0 ? (int)((double)quotaUsed / quotaTotal * 100) : 0;
 
             var xml = $@"<tile>
@@ -45,18 +45,6 @@ namespace NextcloudUWP.Services
             BadgeUpdateManager.CreateBadgeUpdaterForApplication().Clear();
         }
 
-        private static string XmlEscape(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return string.Empty;
-            return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-        }
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes < 1024) return $"{bytes} B";
-            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-            return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
-        }
+        private static string XmlEscape(string s) => FormatHelper.XmlEscape(s);
     }
 }

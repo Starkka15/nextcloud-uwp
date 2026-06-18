@@ -99,6 +99,32 @@
                            FontSize="11" Foreground="#757575"
                            Margin="0,2,0,0" />
 
+                <!-- Sync settings section -->
+                <TextBlock Text="SYNC SETTINGS" FontSize="11" Foreground="#757575"
+                           Margin="0,16,0,8" />
+                <StackPanel Background="{ThemeResource SystemControlBackgroundChromeMediumBrush}"
+                            Padding="16" Margin="0,0,0,4">
+                    <TextBlock Text="Max file size for sync"
+                               FontSize="12" Foreground="#757575" Margin="0,0,0,4" />
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="MaxFileSizeBox" Grid.Column="0"
+                                 PlaceholderText="512" InputScope="Number"
+                                 LostFocus="MaxFileSizeBox_LostFocus" />
+                        <TextBlock Grid.Column="1" Text="MB"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                   Foreground="#757575" />
+                    </Grid>
+                    <TextBlock Text="File types to sync (comma-separated, leave empty for all)"
+                               FontSize="12" Foreground="#757575" Margin="0,0,0,4" />
+                    <TextBox x:Name="FileExtensionsBox"
+                             PlaceholderText=".jpg,.png,.mp4,.pdf,.docx"
+                             LostFocus="FileExtensionsBox_LostFocus" />
+                </StackPanel>
+
                 <!-- Background tasks section -->
                 <TextBlock Text="BACKGROUND TASKS" FontSize="11" Foreground="#757575"
                            Margin="0,16,0,8" />
@@ -125,10 +151,10 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Auto-upload" FontSize="14" FontWeight="SemiBold" />
-                            <TextBlock Text="Upload new photos every 30 min (pick folder below)"
-                                       FontSize="12" Foreground="#757575" />
+                         <StackPanel>
+                             <TextBlock Text="Auto-upload" FontSize="14" FontWeight="SemiBold" />
+                             <TextBlock Text="Upload new files every 30 min · recursive sync"
+                                        FontSize="12" Foreground="#757575" />
                         </StackPanel>
                         <ToggleSwitch x:Name="AutoSyncToggle" Grid.Column="1"
                                       Margin="0" Toggled="AutoSyncToggle_Toggled" />

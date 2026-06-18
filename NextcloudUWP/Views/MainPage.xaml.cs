@@ -18,16 +18,16 @@ namespace NextcloudUWP.Views
     public sealed partial class MainPage : Page
     {
         private MainViewModel _viewModel;
-        private Stack<string> _navigationStack = new Stack<string>();
+        private static Stack<string> _navigationStack = new Stack<string>();
         private CloudFile _contextFile;
 
         private enum SortMode { NameAsc, NameDesc, DateNew, DateOld, SizeLarge, SizeSmall }
-        private SortMode _sortMode = SortMode.NameAsc;
+        private static SortMode _sortMode = SortMode.NameAsc;
 
         public MainPage()
         {
             this.InitializeComponent();
-            _viewModel = new MainViewModel();
+            _viewModel = MainViewModel.Instance;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -47,9 +47,14 @@ namespace NextcloudUWP.Views
 
             if (e.NavigationMode == NavigationMode.Back)
             {
-                // Returning from a sub-page — reload root
-                _navigationStack.Clear();
-                LoadFiles("/").ConfigureAwait(false);
+                if (_navigationStack.Count > 0)
+                {
+                    LoadFiles(_navigationStack.Peek()).ConfigureAwait(false);
+                }
+                else
+                {
+                    LoadFiles("/").ConfigureAwait(false);
+                }
             }
             else if (e.Parameter is string path && !string.IsNullOrEmpty(path))
             {
@@ -97,7 +102,10 @@ namespace NextcloudUWP.Views
                     var collection = new ObservableCollection<CloudFile>(sorted);
                     FileListView.ItemsSource = collection;
                     // Load thumbnails in background — each file notifies UI via INotifyPropertyChanged
-                    _ = _viewModel.LoadThumbnailsAsync(sorted);
+                    _ = _viewModel.LoadThumbnailsAsync(sorted).ContinueWith(t =>
+                    {
+                        if (t.Exception != null) DebugLogger.LogException(nameof(MainPage), t.Exception);
+                    });
                 }
                 else
                 {
@@ -371,7 +379,7 @@ namespace NextcloudUWP.Views
             {
                 url = await _viewModel.CreateShareLinkAsync(_contextFile);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(MainPage), ex); }
             finally { LoadingRing.IsActive = false; }
 
             if (string.IsNullOrEmpty(url))

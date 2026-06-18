@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
-    <ProjectGuid>{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}</ProjectGuid>
+    <ProjectGuid>{A55A4185-9003-4A4B-B809-66EC5601C9D6}</ProjectGuid>
     <OutputType>AppContainerExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>NextcloudUWP</RootNamespace>
@@ -161,6 +161,9 @@
       <DependentUpon>QrScanPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Services\CertPinningService.cs" />
+    <Compile Include="Services\CertPinningHandler.cs" />
+    <Compile Include="Services\DebugLogger.cs" />
+    <Compile Include="Services\FormatHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
@@ -260,9 +263,6 @@
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json">
       <Version>13.0.3</Version>
-    </PackageReference>
-    <PackageReference Include="SQLite.Net-PCL">
-      <Version>3.1.1</Version>
     </PackageReference>
     <PackageReference Include="ZXing.Net">
       <Version>0.16.9</Version>

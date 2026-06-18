@@ -11,6 +11,9 @@ namespace NextcloudUWP.ViewModels
 {
     public class MainViewModel
     {
+        private static MainViewModel _instance;
+        public static MainViewModel Instance => _instance ?? (_instance = new MainViewModel());
+
         private readonly WebDavClient          _webDav;
         private readonly NextcloudClient       _nextcloud;
         private readonly SettingsService       _settings;
@@ -93,7 +96,8 @@ namespace NextcloudUWP.ViewModels
                     await _queue.EnqueueAsync(new OperationEntity
                     {
                         OperationType = "upload",
-                        SourcePath    = fullPath
+                        SourcePath    = fullPath,
+                        LocalFilePath = file.Path
                     });
                     return;
                 }
@@ -292,7 +296,7 @@ namespace NextcloudUWP.ViewModels
         public async Task<SyncResult> TwoWaySyncAsync(
             StorageFolder localFolder,
             string remotePath,
-            IProgress<string> progress = null,
+            IProgress<SyncProgress> progress = null,
             Func<string, Task<ConflictResolution>> onConflict = null)
         {
             var sync = new SyncService();

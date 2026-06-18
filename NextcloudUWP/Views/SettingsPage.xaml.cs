@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Windows.ApplicationModel;
 using Windows.Storage;
 using NextcloudUWP;
@@ -52,11 +54,18 @@ namespace NextcloudUWP.Views
                     SelectedFolderText.Text = folder.Path;
                     UploadNowButton.IsEnabled = true;
                 }
-                catch { }
+                catch (Exception ex) { DebugLogger.LogException(nameof(SettingsPage), ex); }
             }
 
             // Populate auto-upload settings
             RemotePathBox.Text = _settings.AutoUploadRemotePath;
+
+            // Populate sync settings
+            var maxSize = _settings.SyncMaxFileSize;
+            MaxFileSizeBox.Text = maxSize > 0 ? (maxSize / (1024 * 1024)).ToString() : "512";
+            var extensions = _settings.SyncFileExtensions;
+            FileExtensionsBox.Text = extensions.Count > 0 ? string.Join(",", extensions) : "";
+
             var lastSync = _settings.AutoUploadLastSync;
             LastSyncText.Text = string.IsNullOrEmpty(lastSync)
                 ? "Never synced"
@@ -95,7 +104,7 @@ namespace NextcloudUWP.Views
                         account.QuotaTotal);
                 }
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(SettingsPage), ex); }
         }
 
         private void ShowAccountInfo(string displayName, string username, string email,
@@ -120,8 +129,8 @@ namespace NextcloudUWP.Views
 
             if (quotaTotal > 0)
             {
-                var used = FormatSize(quotaUsed);
-                var total = FormatSize(quotaTotal);
+                var used = FormatHelper.FormatSize(quotaUsed);
+                var total = FormatHelper.FormatSize(quotaTotal);
                 var pct = (double)quotaUsed / quotaTotal * 100.0;
                 QuotaText.Text = $"{used} of {total} used";
                 QuotaBar.Value = pct;
@@ -141,6 +150,28 @@ namespace NextcloudUWP.Views
             var path = RemotePathBox.Text?.Trim();
             if (!string.IsNullOrEmpty(path))
                 _settings.AutoUploadRemotePath = path.StartsWith("/") ? path : "/" + path;
+        }
+
+        private void MaxFileSizeBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (int.TryParse(MaxFileSizeBox.Text?.Trim(), out int mb) && mb > 0)
+                _settings.SyncMaxFileSize = mb * 1024L * 1024;
+            else if (string.IsNullOrWhiteSpace(MaxFileSizeBox.Text))
+                _settings.SyncMaxFileSize = 0;
+        }
+
+        private void FileExtensionsBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var text = FileExtensionsBox.Text?.Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                _settings.SyncFileExtensions = new List<string>();
+                return;
+            }
+            var extensions = text.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(ext => ext.Trim().StartsWith(".") ? ext.Trim() : "." + ext.Trim())
+                .ToList();
+            _settings.SyncFileExtensions = extensions;
         }
 
         private async void PickFolder_Click(object sender, RoutedEventArgs e)
@@ -340,14 +371,6 @@ namespace NextcloudUWP.Views
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             if (Frame.CanGoBack) Frame.GoBack();
-        }
-
-        private static string FormatSize(long bytes)
-        {
-            if (bytes < 1024) return $"{bytes} B";
-            if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-            if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
-            return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
         }
     }
 }

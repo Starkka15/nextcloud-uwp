@@ -62,7 +62,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <FontIcon Grid.Column="0"
-                                      Glyph="&#xE7C3;" FontSize="28"
+                                      Glyph="{Binding IconGlyph}" FontSize="28"
                                       Foreground="#0082c9" />
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Name}"

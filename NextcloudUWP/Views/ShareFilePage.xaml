@@ -54,6 +54,9 @@
                                 </StackPanel>
                                 <ToggleSwitch x:Name="PermSwitch" Grid.Column="1"
                                              Header="" OffContent="Read" OnContent="Edit"
+                                             Tag="{Binding Id}"
+                                             IsOn="{Binding CanEdit}"
+                                             Toggled="PermSwitch_Toggled"
                                              Margin="8,0" />
                                 <Button Grid.Column="2" Content="✕"
                                         Tag="{Binding Id}"

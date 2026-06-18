@@ -11,6 +11,8 @@ namespace NextcloudUWP.Services
 {
     public class SyncService
     {
+        private const long DefaultMaxFileSize = 512 * 1024 * 1024;
+
         private readonly WebDavClient _webDav;
         private readonly SettingsService _settings;
 
@@ -22,7 +24,16 @@ namespace NextcloudUWP.Services
                 _webDav.Configure(_settings.ServerUrl, _settings.Username, _settings.Password);
         }
 
-        // ── Upload-only (auto-upload of new local photos/videos) ─────────────
+        public long MaxFileSize
+        {
+            get
+            {
+                var val = _settings.SyncMaxFileSize;
+                return val > 0 ? val : DefaultMaxFileSize;
+            }
+        }
+
+        // ── Recursive folder upload ──────────────────────────────────────────
 
         public async Task<(int uploaded, int skipped, int failed)> UploadFolderAsync(
             StorageFolder sourceFolder,
@@ -37,18 +48,29 @@ namespace NextcloudUWP.Services
             if (!string.IsNullOrEmpty(lastSyncStr))
                 DateTime.TryParse(lastSyncStr, out lastSync);
 
-            try { await _webDav.CreateFolderAsync(remotePath); } catch { }
-
-            var extensions = new[]
-            {
-                ".jpg", ".jpeg", ".png", ".gif", ".bmp",
-                ".mp4", ".mov", ".3gp", ".heic", ".webp"
-            };
-            var opts = new QueryOptions(CommonFileQuery.DefaultQuery, extensions)
+            var extensions = _settings.SyncFileExtensions;
+            var opts = new QueryOptions(
+                extensions.Count > 0
+                    ? CommonFileQuery.DefaultQuery
+                    : CommonFileQuery.DefaultQuery,
+                extensions.Count > 0 ? extensions.ToArray() : new[] { "*" })
             {
                 FolderDepth = FolderDepth.Deep
             };
-            var files = await sourceFolder.CreateFileQueryWithOptions(opts).GetFilesAsync();
+            if (extensions.Count == 0) opts.FileTypeFilter.Add("*");
+
+            var allFiles = await sourceFolder.CreateFileQueryWithOptions(opts).GetFilesAsync();
+            var maxSize = MaxFileSize;
+
+            var files = allFiles.Where(f =>
+            {
+                try
+                {
+                    var props = f.GetBasicPropertiesAsync().AsTask().Result;
+                    return props.Size <= (ulong)maxSize;
+                }
+                catch { return false; }
+            }).ToList();
 
             int uploaded = 0, skipped = 0, failed = 0, done = 0, total = files.Count;
 
@@ -61,16 +83,27 @@ namespace NextcloudUWP.Services
                     progress?.Report((done, total));
                     continue;
                 }
+
+                var relativePath = GetRelativePath(sourceFolder, file);
+                var destFolderPath = $"{remotePath.TrimEnd('/')}/{Path.GetDirectoryName(relativePath)?.Replace('\\', '/')}";
+
+                try { await EnsureRemoteFolderAsync(destFolderPath); }
+                catch (Exception ex) { DebugLogger.Log(nameof(SyncService), $"EnsureRemoteFolder {destFolderPath}: {ex.Message}"); }
+
                 try
                 {
+                    var fullPath = $"{remotePath.TrimEnd('/')}/{relativePath.Replace('\\', '/')}";
                     using (var ras = await file.OpenAsync(FileAccessMode.Read))
                     using (var stream = ras.AsStreamForRead())
-                        await _webDav.UploadFileAsync(
-                            $"{remotePath.TrimEnd('/')}/{file.Name}", stream,
+                        await _webDav.UploadFileAsync(fullPath, stream,
                             file.ContentType ?? "application/octet-stream");
                     uploaded++;
                 }
-                catch { failed++; }
+                catch (Exception ex)
+                {
+                    DebugLogger.LogException(nameof(SyncService), ex);
+                    failed++;
+                }
                 done++;
                 progress?.Report((done, total));
             }
@@ -79,51 +112,78 @@ namespace NextcloudUWP.Services
             return (uploaded, skipped, failed);
         }
 
-        // ── Two-way sync ─────────────────────────────────────────────────────
+        // ── Recursive two-way sync ────────────────────────────────────────────
 
         public async Task<SyncResult> TwoWaySyncAsync(
             StorageFolder localFolder,
             string remotePath,
-            IProgress<string> progress = null,
+            IProgress<SyncProgress> progress = null,
             Func<string, Task<ConflictResolution>> onConflict = null)
         {
             if (!_settings.HasCredentials)
                 throw new InvalidOperationException("No account configured.");
 
             var result = new SyncResult();
-            progress?.Report($"Syncing {remotePath}…");
+            await TwoWaySyncFolderAsync(localFolder, remotePath, result, progress, onConflict);
+            _settings.AutoUploadLastSync = DateTime.UtcNow.ToString("O");
+            progress?.Report(new SyncProgress { Phase = "complete", CurrentFile = null });
+            return result;
+        }
 
-            // Ensure remote folder exists
-            try { await _webDav.CreateFolderAsync(remotePath); } catch { }
+        private async Task TwoWaySyncFolderAsync(
+            StorageFolder localFolder,
+            string remotePath,
+            SyncResult result,
+            IProgress<SyncProgress> progress,
+            Func<string, Task<ConflictResolution>> onConflict,
+            string relativePath = "")
+        {
+            progress?.Report(new SyncProgress
+            {
+                Phase = "scanning",
+                CurrentFolder = string.IsNullOrEmpty(relativePath) ? "/" : relativePath
+            });
 
-            // Get remote listing
+            try { await EnsureRemoteFolderAsync(remotePath); }
+            catch (Exception ex) { DebugLogger.Log(nameof(SyncService), $"EnsureRemoteFolder {remotePath}: {ex.Message}"); }
+
             List<CloudFile> remoteFiles;
             try
             {
                 remoteFiles = await _webDav.ListFilesAsync(remotePath);
-                if (remoteFiles?.Count > 0) remoteFiles.RemoveAt(0); // strip parent entry
+                if (remoteFiles?.Count > 0) remoteFiles.RemoveAt(0);
                 remoteFiles = remoteFiles ?? new List<CloudFile>();
             }
-            catch
+            catch (Exception ex)
             {
+                DebugLogger.LogException(nameof(SyncService), ex);
                 result.Errors++;
-                return result;
+                return;
             }
 
-            // Get local files
             var localFiles = await localFolder.GetFilesAsync();
+            var localFolders = await localFolder.GetFoldersAsync();
+            var maxSize = MaxFileSize;
+
             var localNames = new HashSet<string>(
                 localFiles.Select(f => f.Name), StringComparer.OrdinalIgnoreCase);
-            var remoteNames = new HashSet<string>(
+            var remoteFileNames = new HashSet<string>(
                 remoteFiles.Where(f => !f.IsFolder).Select(f => f.Name),
                 StringComparer.OrdinalIgnoreCase);
 
             // Remote → local: download files not present locally
             foreach (var remote in remoteFiles.Where(f => !f.IsFolder))
             {
+                var displayPath = string.IsNullOrEmpty(relativePath)
+                    ? remote.Name : $"{relativePath}/{remote.Name}";
+                if (remote.Size > maxSize)
+                {
+                    result.Skipped++;
+                    continue;
+                }
+
                 if (localNames.Contains(remote.Name))
                 {
-                    // Both exist — check ETag vs local modification
                     var localFile = localFiles.FirstOrDefault(f =>
                         string.Equals(f.Name, remote.Name, StringComparison.OrdinalIgnoreCase));
                     if (localFile != null)
@@ -131,93 +191,129 @@ namespace NextcloudUWP.Services
                         var localProps = await localFile.GetBasicPropertiesAsync();
                         if (localProps.DateModified.DateTime > remote.ModifiedDate)
                         {
-                            // Local is newer — upload
-                            progress?.Report($"↑ {remote.Name}");
+                            progress?.Report(new SyncProgress { Phase = "uploading", CurrentFile = displayPath });
                             try
                             {
-                                using (var ras = await localFile.OpenAsync(FileAccessMode.Read))
-                                using (var stream = ras.AsStreamForRead())
-                                    await _webDav.UploadFileAsync(
-                                        $"{remotePath.TrimEnd('/')}/{remote.Name}", stream,
-                                        localFile.ContentType ?? "application/octet-stream");
+                                await UploadLocalFileAsync(localFile, $"{remotePath.TrimEnd('/')}/{remote.Name}");
                                 result.Uploaded++;
                             }
-                            catch { result.Errors++; }
+                            catch (Exception ex) { DebugLogger.LogException(nameof(SyncService), ex); result.Errors++; }
                         }
                         else if (remote.ModifiedDate > localProps.DateModified.DateTime.AddSeconds(5))
                         {
-                            // Remote is newer — conflict if local was also modified, else download
                             var cutoff = DateTime.UtcNow.AddDays(-1);
                             if (localProps.DateModified.DateTime > cutoff && onConflict != null)
                             {
-                                var resolution = await onConflict(remote.Name);
+                                var resolution = await onConflict(displayPath);
                                 if (resolution == ConflictResolution.KeepRemote)
-                                    await DownloadFileAsync(remote, localFolder, progress, result);
+                                    await DownloadFileAsync(remote, localFolder, result);
                                 else if (resolution == ConflictResolution.KeepLocal)
                                 {
-                                    progress?.Report($"↑ {remote.Name} (keep local)");
+                                    progress?.Report(new SyncProgress { Phase = "uploading", CurrentFile = displayPath });
                                     try
                                     {
-                                        using (var ras = await localFile.OpenAsync(FileAccessMode.Read))
-                                        using (var stream = ras.AsStreamForRead())
-                                            await _webDav.UploadFileAsync(
-                                                $"{remotePath.TrimEnd('/')}/{remote.Name}", stream,
-                                                localFile.ContentType ?? "application/octet-stream");
+                                        await UploadLocalFileAsync(localFile, $"{remotePath.TrimEnd('/')}/{remote.Name}");
                                         result.Uploaded++;
                                     }
-                                    catch { result.Errors++; }
+                                    catch (Exception ex) { DebugLogger.LogException(nameof(SyncService), ex); result.Errors++; }
                                 }
                                 else if (resolution == ConflictResolution.SaveBoth)
                                 {
-                                    // Rename local to conflict copy then download remote
                                     var conflictName = AddConflictSuffix(remote.Name);
-                                    try { await localFile.RenameAsync(conflictName); } catch { }
-                                    await DownloadFileAsync(remote, localFolder, progress, result);
+                                    try { await localFile.RenameAsync(conflictName); }
+                                    catch (Exception ex) { DebugLogger.LogException(nameof(SyncService), ex); }
+                                    await DownloadFileAsync(remote, localFolder, result);
                                 }
                             }
                             else
                             {
-                                await DownloadFileAsync(remote, localFolder, progress, result);
+                                await DownloadFileAsync(remote, localFolder, result);
                             }
                         }
-                        // else: same age, skip
                     }
                 }
                 else
                 {
-                    // Remote only → download
-                    await DownloadFileAsync(remote, localFolder, progress, result);
+                    await DownloadFileAsync(remote, localFolder, result);
                 }
             }
 
             // Local → remote: upload files not present remotely
             foreach (var localFile in localFiles)
             {
-                if (!remoteNames.Contains(localFile.Name))
+                var displayPath = string.IsNullOrEmpty(relativePath)
+                    ? localFile.Name : $"{relativePath}/{localFile.Name}";
+                if (!remoteFileNames.Contains(localFile.Name))
                 {
-                    progress?.Report($"↑ {localFile.Name}");
+                    var props = await localFile.GetBasicPropertiesAsync();
+                    if (props.Size > (ulong)maxSize) { result.Skipped++; continue; }
+
+                    progress?.Report(new SyncProgress { Phase = "uploading", CurrentFile = displayPath });
                     try
                     {
-                        using (var ras = await localFile.OpenAsync(FileAccessMode.Read))
-                        using (var stream = ras.AsStreamForRead())
-                            await _webDav.UploadFileAsync(
-                                $"{remotePath.TrimEnd('/')}/{localFile.Name}", stream,
-                                localFile.ContentType ?? "application/octet-stream");
+                        await UploadLocalFileAsync(localFile, $"{remotePath.TrimEnd('/')}/{localFile.Name}");
                         result.Uploaded++;
                     }
-                    catch { result.Errors++; }
+                    catch (Exception ex) { DebugLogger.LogException(nameof(SyncService), ex); result.Errors++; }
                 }
             }
 
-            _settings.AutoUploadLastSync = DateTime.UtcNow.ToString("O");
-            progress?.Report("Sync complete.");
-            return result;
+            // Recurse into subfolders
+            var remoteFolderNames = new HashSet<string>(
+                remoteFiles.Where(f => f.IsFolder).Select(f => f.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var subFolder in localFolders)
+            {
+                var subRemote = $"{remotePath.TrimEnd('/')}/{subFolder.Name}";
+                var subRelative = string.IsNullOrEmpty(relativePath)
+                    ? subFolder.Name : $"{relativePath}/{subFolder.Name}";
+
+                if (!remoteFolderNames.Contains(subFolder.Name))
+                {
+                    try { await EnsureRemoteFolderAsync(subRemote); }
+                    catch (Exception ex) { DebugLogger.Log(nameof(SyncService), $"CreateFolder {subRemote}: {ex.Message}"); }
+                }
+
+                await TwoWaySyncFolderAsync(subFolder, subRemote, result, progress, onConflict, subRelative);
+            }
+
+            // Download remote-only subfolders
+            foreach (var remoteSub in remoteFiles.Where(f => f.IsFolder))
+            {
+                if (!remoteFolderNames.Contains(remoteSub.Name)) continue;
+                bool localExists = localFolders.Any(f =>
+                    string.Equals(f.Name, remoteSub.Name, StringComparison.OrdinalIgnoreCase));
+                if (!localExists)
+                {
+                    var subRelative = string.IsNullOrEmpty(relativePath)
+                        ? remoteSub.Name : $"{relativePath}/{remoteSub.Name}";
+                    var newLocalFolder = await localFolder.CreateFolderAsync(
+                        remoteSub.Name, CreationCollisionOption.OpenIfExists);
+                    var subRemote = $"{remotePath.TrimEnd('/')}/{remoteSub.Name}";
+                    await TwoWaySyncFolderAsync(newLocalFolder, subRemote, result, progress, onConflict, subRelative);
+                }
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+
+        private async Task EnsureRemoteFolderAsync(string path)
+        {
+            await _webDav.CreateFolderAsync(path);
+        }
+
+        private async Task UploadLocalFileAsync(StorageFile file, string remotePath)
+        {
+            using (var ras = await file.OpenAsync(FileAccessMode.Read))
+            using (var stream = ras.AsStreamForRead())
+                await _webDav.UploadFileAsync(remotePath, stream,
+                    file.ContentType ?? "application/octet-stream");
         }
 
         private async Task DownloadFileAsync(CloudFile remote, StorageFolder localFolder,
-            IProgress<string> progress, SyncResult result)
+            SyncResult result)
         {
-            progress?.Report($"↓ {remote.Name}");
             try
             {
                 var localFile = await localFolder.CreateFileAsync(
@@ -228,7 +324,19 @@ namespace NextcloudUWP.Services
                     await downloadStream.CopyToAsync(fileStream);
                 result.Downloaded++;
             }
-            catch { result.Errors++; }
+            catch (Exception ex) { DebugLogger.LogException(nameof(SyncService), ex); result.Errors++; }
+        }
+
+        private static string GetRelativePath(StorageFolder root, StorageFile file)
+        {
+            var rootPath = root.Path.TrimEnd('\\', '/');
+            var filePath = file.Path;
+            if (filePath.StartsWith(rootPath, StringComparison.OrdinalIgnoreCase))
+            {
+                var rel = filePath.Substring(rootPath.Length).TrimStart('\\', '/');
+                return rel;
+            }
+            return file.Name;
         }
 
         private static string AddConflictSuffix(string name)
@@ -247,6 +355,13 @@ namespace NextcloudUWP.Services
         public int Errors     { get; set; }
         public override string ToString() =>
             $"↑{Uploaded} ↓{Downloaded} ={Skipped} ✕{Errors}";
+    }
+
+    public class SyncProgress
+    {
+        public string Phase        { get; set; }
+        public string CurrentFile  { get; set; }
+        public string CurrentFolder { get; set; }
     }
 
     public enum ConflictResolution { KeepRemote, KeepLocal, SaveBoth }

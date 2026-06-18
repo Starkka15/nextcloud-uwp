@@ -2,6 +2,7 @@ using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using NextcloudUWP.Services;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
@@ -12,7 +13,7 @@ namespace NextcloudUWP.Views
 {
     public sealed partial class ShareFilePage : Page
     {
-        private readonly MainViewModel _viewModel = new MainViewModel();
+        private readonly MainViewModel _viewModel = MainViewModel.Instance;
         private CloudFile _file;
         private ObservableCollection<ShareInfo> _shares = new ObservableCollection<ShareInfo>();
 
@@ -129,7 +130,7 @@ namespace NextcloudUWP.Views
                 list.Clear();
                 foreach (var (id, _) in results) list.Add(id);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(ShareFilePage), ex); }
         }
 
         private async void GroupSearch_TextChanged(object sender, TextChangedEventArgs e)
@@ -143,7 +144,7 @@ namespace NextcloudUWP.Views
                 list.Clear();
                 foreach (var g in results) list.Add(g);
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(ShareFilePage), ex); }
         }
 
         private void ShowStatus(string msg, bool isError = true)
@@ -153,6 +154,25 @@ namespace NextcloudUWP.Views
                 ? new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Red)
                 : new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Colors.Green);
             StatusText.Visibility = Visibility.Visible;
+        }
+
+        private async void PermSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            var toggle = sender as ToggleSwitch;
+            if (toggle == null) return;
+            if (!int.TryParse(toggle.Tag?.ToString(), out int shareId)) return;
+
+            int newPerms = toggle.IsOn ? 17 : 1;
+            try
+            {
+                await _viewModel.UpdateSharePermissionsAsync(shareId, newPerms);
+                await LoadSharesAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowStatus($"Failed to update permissions: {ex.Message}");
+                toggle.IsOn = !toggle.IsOn;
+            }
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

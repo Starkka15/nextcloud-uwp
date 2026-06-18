@@ -13,7 +13,7 @@ namespace NextcloudUWP.Services
     public class WebDavClient
     {
         private static readonly XNamespace DavNs = "DAV:";
-        private readonly HttpClient _httpClient;
+        private HttpClient _httpClient;
         private string _serverUrl;
         private string _username;
 
@@ -27,6 +27,7 @@ namespace NextcloudUWP.Services
             _serverUrl = serverUrl.TrimEnd('/');
             _username = username;
 
+            _httpClient = new HttpClient(new CertPinningHandler(_serverUrl));
             var authBytes = Encoding.UTF8.GetBytes($"{username}:{password}");
             var authHeader = Convert.ToBase64String(authBytes);
             _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authHeader);

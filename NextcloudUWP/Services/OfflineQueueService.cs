@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Newtonsoft.Json;
@@ -11,7 +12,7 @@ namespace NextcloudUWP.Services
     public class OfflineQueueService
     {
         private const string FileName = "offline_queue.json";
-        private static int _idSeed = 1;
+        private static int _idSeed;
 
         private string FilePath => Path.Combine(
             ApplicationData.Current.LocalFolder.Path, FileName);
@@ -25,10 +26,13 @@ namespace NextcloudUWP.Services
                     ApplicationData.Current.LocalFolder.Path);
                 var file = await folder.GetFileAsync(FileName);
                 var json = await FileIO.ReadTextAsync(file);
-                return JsonConvert.DeserializeObject<List<OperationEntity>>(json)
+                var ops = JsonConvert.DeserializeObject<List<OperationEntity>>(json)
                     ?? new List<OperationEntity>();
+                if (ops.Count > 0)
+                    _idSeed = Math.Max(_idSeed, ops.Max(o => o.Id) + 1);
+                return ops;
             }
-            catch { return new List<OperationEntity>(); }
+            catch (Exception ex) { DebugLogger.LogException(nameof(OfflineQueueService), ex); return new List<OperationEntity>(); }
         }
 
         private async Task PersistAsync(List<OperationEntity> ops)
@@ -40,7 +44,7 @@ namespace NextcloudUWP.Services
                 var file = await folder.CreateFileAsync(FileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(file, JsonConvert.SerializeObject(ops));
             }
-            catch { }
+            catch (Exception ex) { DebugLogger.LogException(nameof(OfflineQueueService), ex); }
         }
 
         public async Task EnqueueAsync(OperationEntity op)

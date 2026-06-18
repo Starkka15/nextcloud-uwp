@@ -3,7 +3,33 @@
 All notable changes to Nextcloud UWP are documented here.
 Versioning follows [Semantic Versioning](https://semver.org/).
 
+The package version in `Package.appxmanifest` (`<Identity Version>`) is the
+single source of truth and must match the released git tag (`vX.Y.Z`).
+
 ---
+
+## [Unreleased] — 1.3.0
+
+### Fixed
+- **QR login no longer crashes the app.** The scanner sampled a full-resolution
+  still photo (`CapturePhotoToStreamAsync`) every 400 ms, driving the camera's
+  shutter/refocus pipeline and leaking memory until W10M killed the app. It now
+  samples the live preview buffer (`GetPreviewFrameAsync`) into a single reused
+  pixel buffer — no still capture, no per-frame allocation. (#1)
+- **QR preview orientation.** Preview is now rotated to match the camera sensor
+  mount angle + display orientation (and re-applied on rotation), so it renders
+  upright in portrait and landscape instead of sideways/upside-down.
+- **QR camera focus.** Continuous autofocus is now configured on start; the
+  preview was previously left unfocused.
+- **QR credential parsing.** Login codes are parsed in Nextcloud's real format
+  `nc://login/server:<url>&user:<u>&password:<p>` (colon-separated, in the path)
+  instead of the never-emitted query-string form — fixes "QR code missing
+  credentials" on valid codes.
+
+### Notes
+- `1.1.0` and `1.2.0` were tagged in git but never recorded here; the manifest
+  was also left at `1.0.0.0`. Manifest, CHANGELOG, and tag are realigned from
+  this release forward.
 
 ## [1.0.0] — 2026-04-02
 

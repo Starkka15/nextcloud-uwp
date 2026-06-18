@@ -10,7 +10,7 @@ namespace NextcloudUWP.Views
 {
     public sealed partial class SearchPage : Page
     {
-        private readonly MainViewModel _viewModel = new MainViewModel();
+        private readonly MainViewModel _viewModel = MainViewModel.Instance;
 
         public SearchPage()
         {
